@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Slide Evaluation</title>
+
+    <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+    <link rel="stylesheet" href="https://static2.sharepointonline.com/files/fabric/office-ui-fabric-core/11.0.0/css/fabric.min.css"/>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap"/>
+
+    <style>
+        :root {
+            --black: #1a1a2e;
+            --dark: #2d2d44;
+            --gray-600: #4a4a5a;
+            --gray-500: #6b6b7b;
+            --gray-400: #9898a8;
+            --gray-300: #c4c4d0;
+            --gray-200: #e0e0e8;
+            --gray-100: #f0f0f4;
+            --gray-50: #f8f8fa;
+            --white: #ffffff;
+            --success: #2d8a39;
+            --warning: #b45309;
+            --error: #c53030;
+            --info: #2563eb;
+            --radius: 16px;
+            --radius-sm: 12px;
+            --radius-btn: 8px;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Noto Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            font-size: 14px;
+            line-height: 1.6;
+            color: var(--black);
+            background: var(--gray-50);
+            min-height: 100vh;
+        }
+
+        .taskpane { display: flex; flex-direction: column; min-height: 100vh; }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            background: var(--white);
+            border-bottom: 1px solid var(--gray-200);
+            padding: 16px 16px 0;
+            gap: 4px;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 14px 8px 12px;
+            background: none;
+            border: none;
+            border-bottom: 2px solid transparent;
+            font-family: 'Noto Sans', sans-serif;
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--gray-400);
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .tab i { font-size: 18px; }
+        .tab:hover { color: var(--gray-600); }
+        .tab.active {
+            color: var(--black);
+            border-bottom-color: var(--black);
+            font-weight: 600;
+        }
+
+        /* Tab Content */
+        .tab-content { display: none; flex: 1; overflow-y: auto; padding: 20px; }
+        .tab-content.active { display: flex; flex-direction: column; gap: 16px; }
+
+        /* Section Label */
+        .section-label {
+            display: block;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--gray-400);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 16px;
+        }
+
+        /* Cards */
+        .card {
+            background: var(--white);
+            border-radius: var(--radius);
+            padding: 20px;
+        }
+
+        /* Scope Toggle */
+        .scope-toggle {
+            display: flex;
+            background: var(--gray-100);
+            border-radius: var(--radius-btn);
+            padding: 3px;
+            gap: 2px;
+        }
+
+        .scope-btn {
+            flex: 1;
+            padding: 10px 16px;
+            border: none;
+            border-radius: 6px;
+            font-family: 'Noto Sans', sans-serif;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--gray-500);
+            background: transparent;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .scope-btn.active {
+            background: var(--white);
+            color: var(--black);
+            font-weight: 600;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+
+        /* Check Items */
+        .check-list { display: flex; flex-direction: column; gap: 8px; }
+
+        .check-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            background: var(--white);
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-btn);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .check-item:hover { border-color: var(--gray-300); background: var(--gray-50); }
+
+        .check-item input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: var(--black);
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+
+        .check-item-text { flex: 1; }
+        .check-item-name { font-size: 13px; font-weight: 600; color: var(--black); }
+        .check-item-desc { font-size: 11px; color: var(--gray-500); margin-top: 2px; }
+
+        /* Run Button */
+        .btn-run {
+            width: 100%;
+            padding: 16px 24px;
+            background: var(--black);
+            color: var(--white);
+            border: none;
+            border-radius: var(--radius-btn);
+            font-family: 'Noto Sans', sans-serif;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            transition: background 0.2s;
+        }
+
+        .btn-run::after {
+            content: '\2192';
+            font-size: 16px;
+            transition: transform 0.2s;
+        }
+
+        .btn-run:hover:not(:disabled) { background: var(--dark); }
+        .btn-run:hover:not(:disabled)::after { transform: translateX(4px); }
+        .btn-run:disabled { background: var(--gray-300); cursor: not-allowed; }
+        .btn-run:disabled::after { display: none; }
+
+        .btn-run .spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        .btn-run.loading::after { display: none; }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Results */
+        .results-section {
+            background: var(--white);
+            border-radius: var(--radius);
+            padding: 20px;
+            display: none;
+        }
+
+        .results-section.visible { display: block; animation: fadeIn 0.3s ease; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .result-category { margin-bottom: 20px; }
+        .result-category:last-child { margin-bottom: 0; }
+
+        .result-category-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .result-category-name {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--black);
+        }
+
+        .result-score {
+            font-size: 12px;
+            font-weight: 600;
+            padding: 4px 10px;
+            border-radius: 20px;
+        }
+
+        .score-good { background: #e8f5e9; color: var(--success); }
+        .score-warning { background: #fff3e0; color: var(--warning); }
+        .score-error { background: #ffebee; color: var(--error); }
+
+        .result-items { display: flex; flex-direction: column; gap: 8px; }
+
+        .result-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 10px 14px;
+            border-radius: var(--radius-btn);
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .result-item.pass { background: #f0fdf4; color: var(--success); }
+        .result-item.warn { background: #fffbeb; color: var(--warning); }
+        .result-item.fail { background: #fef2f2; color: var(--error); }
+        .result-item.info { background: var(--gray-100); color: var(--gray-600); }
+
+        .result-item i { font-size: 14px; margin-top: 2px; flex-shrink: 0; }
+
+        /* Overall Score */
+        .overall-score {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            padding: 24px;
+            margin-bottom: 16px;
+        }
+
+        .score-circle {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--white);
+            flex-shrink: 0;
+        }
+
+        .score-circle.good { background: var(--success); }
+        .score-circle.warning { background: var(--warning); }
+        .score-circle.error { background: var(--error); }
+
+        .score-summary { flex: 1; }
+        .score-summary-title { font-size: 16px; font-weight: 700; color: var(--black); }
+        .score-summary-text { font-size: 12px; color: var(--gray-500); margin-top: 4px; }
+
+        /* Input (underline style) */
+        .input-underline {
+            flex: 1;
+            padding: 12px 0;
+            border: none;
+            border-bottom: 1px solid var(--gray-300);
+            font-family: 'Noto Sans', sans-serif;
+            font-size: 14px;
+            background: transparent;
+            transition: border-color 0.2s;
+        }
+
+        .input-underline:focus { outline: none; border-bottom-color: var(--black); }
+        .input-underline::placeholder { color: var(--gray-400); }
+
+        /* API Key */
+        .api-key-section {
+            background: var(--white);
+            border-radius: var(--radius);
+            padding: 20px;
+        }
+
+        .api-key-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+
+        .api-key-status {
+            font-size: 11px;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-weight: 500;
+        }
+
+        .api-key-status.connected { background: #e8f5e9; color: var(--success); }
+        .api-key-status.disconnected { background: var(--gray-100); color: var(--gray-500); }
+
+        .api-key-input-wrapper { display: flex; gap: 12px; align-items: flex-end; }
+
+        .btn-save-key {
+            padding: 10px 20px;
+            background: var(--black);
+            color: var(--white);
+            border: none;
+            border-radius: var(--radius-btn);
+            font-family: 'Noto Sans', sans-serif;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+            white-space: nowrap;
+        }
+
+        .btn-save-key:hover { background: var(--dark); }
+
+        /* Status Messages */
+        .status-message {
+            padding: 14px 16px;
+            border-radius: var(--radius-sm);
+            font-size: 13px;
+            display: none;
+            align-items: center;
+            gap: 10px;
+            font-weight: 500;
+        }
+
+        .status-message.visible { display: flex; animation: fadeIn 0.3s ease; }
+        .status-message.success { background: #e8f5e9; color: var(--success); }
+        .status-message.error { background: #ffebee; color: var(--error); }
+        .status-message.info { background: var(--gray-100); color: var(--gray-600); }
+
+        /* Info box */
+        .info-box {
+            padding: 16px;
+            background: var(--gray-50);
+            border-radius: var(--radius-sm);
+        }
+        .info-box h3 { font-size: 14px; font-weight: 600; margin-bottom: 8px; color: var(--black); }
+        .info-box p { font-size: 12px; color: var(--gray-500); line-height: 1.7; margin-bottom: 0; }
+        .info-box a { color: var(--black); text-decoration: underline; }
+
+        /* Focus styles */
+        .tab:focus-visible,
+        .scope-btn:focus-visible,
+        .check-item:focus-visible,
+        .btn-run:focus-visible,
+        .btn-save-key:focus-visible {
+            outline: 2px solid var(--black);
+            outline-offset: 2px;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--gray-300); border-radius: 2px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--gray-400); }
+    </style>
+</head>
+<body>
+    <div class="taskpane">
+        <!-- Tabs -->
+        <div class="tabs" role="tablist" aria-label="Main navigation">
+            <button class="tab active" data-tab="evaluate" role="tab" aria-selected="true" aria-controls="tab-evaluate" id="tabBtn-evaluate">
+                <i class="ms-Icon ms-Icon--AnalyticsView" aria-hidden="true"></i><span>Evaluate</span>
+            </button>
+            <button class="tab" data-tab="results" role="tab" aria-selected="false" aria-controls="tab-results" id="tabBtn-results">
+                <i class="ms-Icon ms-Icon--ReportDocument" aria-hidden="true"></i><span>Results</span>
+            </button>
+            <button class="tab" data-tab="settings" role="tab" aria-selected="false" aria-controls="tab-settings" id="tabBtn-settings">
+                <i class="ms-Icon ms-Icon--Settings" aria-hidden="true"></i><span>Settings</span>
+            </button>
+        </div>
+
+        <!-- ==================== EVALUATE TAB ==================== -->
+        <div class="tab-content active" id="tab-evaluate" role="tabpanel" aria-labelledby="tabBtn-evaluate">
+
+            <!-- Scope: Current Slide vs Full Presentation -->
+            <div class="card">
+                <label class="section-label">Scope</label>
+                <div class="scope-toggle" role="radiogroup" aria-label="Evaluation scope">
+                    <button class="scope-btn active" data-scope="slide" role="radio" aria-checked="true">Current Slide</button>
+                    <button class="scope-btn" data-scope="presentation" role="radio" aria-checked="false">Full Presentation</button>
+                </div>
+            </div>
+
+            <!-- Evaluation Criteria -->
+            <div class="card">
+                <label class="section-label">Criteria</label>
+                <div class="check-list">
+                    <label class="check-item">
+                        <input type="checkbox" checked data-check="layout">
+                        <div class="check-item-text">
+                            <div class="check-item-name">Layout</div>
+                            <div class="check-item-desc">Alignment, spacing, visual hierarchy, slide balance</div>
+                        </div>
+                    </label>
+                    <label class="check-item">
+                        <input type="checkbox" checked data-check="writing">
+                        <div class="check-item-text">
+                            <div class="check-item-name">Writing Style</div>
+                            <div class="check-item-desc">Grammar, tone, consistency, jargon, wordiness</div>
+                        </div>
+                    </label>
+                    <label class="check-item">
+                        <input type="checkbox" checked data-check="clarity">
+                        <div class="check-item-text">
+                            <div class="check-item-name">Content Clarity</div>
+                            <div class="check-item-desc">Key message, logical flow, data readability</div>
+                        </div>
+                    </label>
+                    <label class="check-item">
+                        <input type="checkbox" checked data-check="accessibility">
+                        <div class="check-item-text">
+                            <div class="check-item-name">Accessibility</div>
+                            <div class="check-item-desc">Contrast, font sizes, alt text, color-only info</div>
+                        </div>
+                    </label>
+                    <label class="check-item">
+                        <input type="checkbox" data-check="focal">
+                        <div class="check-item-text">
+                            <div class="check-item-name">Focal Point</div>
+                            <div class="check-item-desc">Visual weight distribution, attention heatmap</div>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <button class="btn-run" id="btnRun" disabled>
+                <span>Run Evaluation</span>
+            </button>
+
+            <div id="statusMessage" class="status-message" role="status" aria-live="polite">
+                <i class="ms-Icon" aria-hidden="true"></i><span></span>
+            </div>
+        </div>
+
+        <!-- ==================== RESULTS TAB ==================== -->
+        <div class="tab-content" id="tab-results" role="tabpanel" aria-labelledby="tabBtn-results">
+
+            <div id="resultsEmpty" class="info-box" style="text-align: center; padding: 40px 20px;">
+                <p style="color: var(--gray-400); font-size: 13px;">No evaluation run yet. Go to the Evaluate tab to start.</p>
+            </div>
+
+            <div id="resultsContent" style="display: none;">
+                <!-- Overall Score -->
+                <div class="card">
+                    <div class="overall-score">
+                        <div class="score-circle" id="overallScoreCircle">—</div>
+                        <div class="score-summary">
+                            <div class="score-summary-title" id="overallScoreTitle">Not evaluated</div>
+                            <div class="score-summary-text" id="overallScoreText">Run an evaluation to see your score</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Per-category Results -->
+                <div id="resultsContainer"></div>
+            </div>
+        </div>
+
+        <!-- ==================== SETTINGS TAB ==================== -->
+        <div class="tab-content" id="tab-settings" role="tabpanel" aria-labelledby="tabBtn-settings">
+
+            <div class="api-key-section">
+                <div class="api-key-header">
+                    <label class="section-label" style="margin-bottom:0">OpenAI API Key</label>
+                    <span id="apiKeyStatus" class="api-key-status disconnected">Not Set</span>
+                </div>
+                <div class="api-key-input-wrapper">
+                    <input type="password" id="apiKeyInput" class="input-underline" placeholder="sk-..." autocomplete="off">
+                    <button class="btn-save-key" id="btnSaveKey" type="button">Save</button>
+                </div>
+            </div>
+
+            <div class="info-box" style="margin-top: 16px;">
+                <h3>How it works</h3>
+                <p>
+                    Slide Evaluation extracts text and layout data from your slides and sends it to OpenAI's API for analysis.
+                    Your API key is stored locally in this browser only.<br><br>
+                    <strong>Criteria:</strong><br>
+                    <strong>Layout</strong> — checks alignment, spacing, and visual hierarchy<br>
+                    <strong>Writing Style</strong> — checks grammar, tone, and consistency<br>
+                    <strong>Content Clarity</strong> — checks if the key message is clear<br>
+                    <strong>Accessibility</strong> — checks contrast, font sizes, and alt text<br>
+                    <strong>Focal Point</strong> — analyzes visual weight distribution
+                </p>
+            </div>
+
+            <div class="info-box" style="margin-top: 12px;">
+                <h3>About</h3>
+                <p><strong>Slide Evaluation</strong><br>Version 1.0<br><br>
+                    Evaluate your PowerPoint slides against best practices.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        'use strict';
+
+        // ======================
+        // Constants
+        // ======================
+        const STORAGE_KEYS = {
+            apiKey: 'slideeval_api_key'
+        };
+
+        const CRITERIA = {
+            layout:        { name: 'Layout',          icon: 'GridViewSmall' },
+            writing:       { name: 'Writing Style',   icon: 'Edit' },
+            clarity:       { name: 'Content Clarity',  icon: 'Lightbulb' },
+            accessibility: { name: 'Accessibility',    icon: 'Accessibility' },
+            focal:         { name: 'Focal Point',      icon: 'RedEye' }
+        };
+
+        // ======================
+        // State
+        // ======================
+        const state = {
+            apiKey: '',
+            scope: 'slide',
+            isRunning: false,
+            lastResults: null
+        };
+
+        // ======================
+        // DOM
+        // ======================
+        const $ = (id) => document.getElementById(id);
+        const $$ = (sel) => document.querySelectorAll(sel);
+
+        const el = {
+            get tabs() { return $$('.tab'); },
+            get tabContents() { return $$('.tab-content'); },
+            get scopeBtns() { return $$('.scope-btn'); },
+            get checkboxes() { return $$('.check-item input[type="checkbox"]'); },
+            btnRun: $('btnRun'),
+            statusMessage: $('statusMessage'),
+            resultsEmpty: $('resultsEmpty'),
+            resultsContent: $('resultsContent'),
+            resultsContainer: $('resultsContainer'),
+            overallScoreCircle: $('overallScoreCircle'),
+            overallScoreTitle: $('overallScoreTitle'),
+            overallScoreText: $('overallScoreText'),
+            apiKeyInput: $('apiKeyInput'),
+            apiKeyStatus: $('apiKeyStatus'),
+            btnSaveKey: $('btnSaveKey')
+        };
+
+        // ======================
+        // Storage
+        // ======================
+        function storageGet(key) {
+            try { return localStorage.getItem(key); } catch (e) { return null; }
+        }
+
+        function storageSet(key, value) {
+            try { localStorage.setItem(key, value); } catch (e) { /* ignore */ }
+        }
+
+        // ======================
+        // Init
+        // ======================
+        let initialized = false;
+
+        Office.onReady(() => { initializeApp(); });
+        document.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => { if (!initialized) initializeApp(); }, 1000);
+        });
+
+        function initializeApp() {
+            if (initialized) return;
+            initialized = true;
+
+            loadApiKey();
+            setupEventListeners();
+            updateRunButton();
+        }
+
+        // ======================
+        // API Key
+        // ======================
+        function loadApiKey() {
+            const saved = storageGet(STORAGE_KEYS.apiKey);
+            if (saved) {
+                state.apiKey = saved;
+                el.apiKeyInput.value = '\u2022'.repeat(16);
+                setApiKeyStatus(true);
+            }
+        }
+
+        function saveApiKey() {
+            const key = el.apiKeyInput.value.trim();
+            if (!key || key.includes('\u2022')) return;
+            state.apiKey = key;
+            el.apiKeyInput.value = '\u2022'.repeat(16);
+            setApiKeyStatus(true);
+            storageSet(STORAGE_KEYS.apiKey, key);
+            showStatus('API key saved!', 'success');
+            updateRunButton();
+        }
+
+        function setApiKeyStatus(isSet) {
+            el.apiKeyStatus.textContent = isSet ? 'Connected' : 'Not Set';
+            el.apiKeyStatus.className = 'api-key-status ' + (isSet ? 'connected' : 'disconnected');
+        }
+
+        // ======================
+        // Tabs
+        // ======================
+        function switchTab(tabName) {
+            el.tabs.forEach(tab => {
+                const isActive = tab.dataset.tab === tabName;
+                tab.classList.toggle('active', isActive);
+                tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
+            });
+            el.tabContents.forEach(c => c.classList.toggle('active', c.id === 'tab-' + tabName));
+        }
+
+        // ======================
+        // Event Listeners
+        // ======================
+        function setupEventListeners() {
+            el.tabs.forEach(tab => tab.addEventListener('click', () => switchTab(tab.dataset.tab)));
+
+            el.scopeBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    el.scopeBtns.forEach(b => {
+                        b.classList.remove('active');
+                        b.setAttribute('aria-checked', 'false');
+                    });
+                    btn.classList.add('active');
+                    btn.setAttribute('aria-checked', 'true');
+                    state.scope = btn.dataset.scope;
+                });
+            });
+
+            el.checkboxes.forEach(cb => cb.addEventListener('change', updateRunButton));
+
+            el.btnRun.addEventListener('click', runEvaluation);
+            el.btnSaveKey.addEventListener('click', saveApiKey);
+            el.apiKeyInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') saveApiKey(); });
+        }
+
+        // ======================
+        // UI Helpers
+        // ======================
+        function getSelectedCriteria() {
+            const selected = [];
+            el.checkboxes.forEach(cb => {
+                if (cb.checked) selected.push(cb.dataset.check);
+            });
+            return selected;
+        }
+
+        function updateRunButton() {
+            const hasKey = state.apiKey.length > 0;
+            const hasCriteria = getSelectedCriteria().length > 0;
+            el.btnRun.disabled = !hasKey || !hasCriteria || state.isRunning;
+
+            if (state.isRunning) {
+                el.btnRun.classList.add('loading');
+                el.btnRun.innerHTML = '<div class="spinner"></div><span>Evaluating...</span>';
+            } else {
+                el.btnRun.classList.remove('loading');
+                el.btnRun.innerHTML = '<span>Run Evaluation</span>';
+            }
+        }
+
+        let statusTimer = null;
+        function showStatus(message, type) {
+            const iconMap = { success: 'CheckMark', error: 'ErrorBadge', info: 'Info' };
+            el.statusMessage.innerHTML = '';
+            const icon = document.createElement('i');
+            icon.className = 'ms-Icon ms-Icon--' + (iconMap[type] || 'Info');
+            icon.setAttribute('aria-hidden', 'true');
+            const span = document.createElement('span');
+            span.textContent = message;
+            el.statusMessage.appendChild(icon);
+            el.statusMessage.appendChild(span);
+            el.statusMessage.className = 'status-message visible ' + type;
+
+            if (statusTimer) clearTimeout(statusTimer);
+            if (type !== 'error') {
+                statusTimer = setTimeout(() => el.statusMessage.classList.remove('visible'), 3000);
+            }
+        }
+
+        // ======================
+        // Slide Data Extraction
+        // ======================
+        async function extractSlideData() {
+            const slideData = [];
+
+            await PowerPoint.run(async (context) => {
+                const presentation = context.presentation;
+                const slides = presentation.slides;
+                slides.load('items');
+                await context.sync();
+
+                const targetSlides = state.scope === 'slide'
+                    ? [presentation.getSelectedSlides().getItemAt(0)]
+                    : slides.items;
+
+                for (const slide of targetSlides) {
+                    slide.load('id');
+                    const shapes = slide.shapes;
+                    shapes.load('items');
+                    await context.sync();
+
+                    const shapeData = [];
+                    for (const shape of shapes.items) {
+                        shape.load(['name', 'type', 'left', 'top', 'width', 'height']);
+                        await context.sync();
+
+                        const info = {
+                            name: shape.name,
+                            type: shape.type,
+                            left: Math.round(shape.left),
+                            top: Math.round(shape.top),
+                            width: Math.round(shape.width),
+                            height: Math.round(shape.height)
+                        };
+
+                        // Try to get text
+                        try {
+                            const textFrame = shape.textFrame;
+                            textFrame.load('textRange');
+                            await context.sync();
+                            const textRange = textFrame.textRange;
+                            textRange.load('text');
+                            await context.sync();
+                            info.text = textRange.text;
+                        } catch (e) {
+                            // Shape has no text frame
+                        }
+
+                        shapeData.push(info);
+                    }
+
+                    slideData.push({
+                        id: slide.id,
+                        shapes: shapeData
+                    });
+                }
+            });
+
+            return slideData;
+        }
+
+        // ======================
+        // Evaluation
+        // ======================
+        async function runEvaluation() {
+            if (state.isRunning || !state.apiKey) return;
+
+            const criteria = getSelectedCriteria();
+            if (criteria.length === 0) return;
+
+            state.isRunning = true;
+            updateRunButton();
+            showStatus('Extracting slide data...', 'info');
+
+            try {
+                const slideData = await extractSlideData();
+
+                if (slideData.length === 0) {
+                    showStatus('No slides found', 'error');
+                    return;
+                }
+
+                showStatus('Analyzing ' + slideData.length + ' slide(s)...', 'info');
+
+                const criteriaDescriptions = criteria.map(c => CRITERIA[c].name).join(', ');
+
+                const prompt = `You are an expert presentation consultant. Evaluate the following PowerPoint slide data against these criteria: ${criteriaDescriptions}.
+
+Slide data (JSON):
+${JSON.stringify(slideData, null, 2)}
+
+For each criterion, provide:
+1. A score from 0-100
+2. A list of specific findings, each marked as "pass", "warn", or "fail"
+3. Actionable suggestions for improvement
+
+Respond in this exact JSON format:
+{
+  "overall_score": <number 0-100>,
+  "overall_summary": "<one sentence summary>",
+  "categories": {
+    "<criterion_key>": {
+      "score": <number 0-100>,
+      "findings": [
+        { "type": "pass|warn|fail", "message": "<finding>" }
+      ]
+    }
+  }
+}
+
+Only include the criteria requested: ${criteria.join(', ')}. Respond with JSON only, no markdown.`;
+
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 120000);
+
+                const response = await fetch('https://api.openai.com/v1/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + state.apiKey
+                    },
+                    body: JSON.stringify({
+                        model: 'gpt-4o',
+                        messages: [{ role: 'user', content: prompt }],
+                        temperature: 0.3
+                    }),
+                    signal: controller.signal
+                });
+
+                clearTimeout(timeoutId);
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.error?.message || 'API request failed');
+                }
+
+                const data = await response.json();
+                const content = data.choices[0].message.content.trim();
+
+                // Parse JSON (strip markdown fences if present)
+                const jsonStr = content.replace(/^```json?\n?/i, '').replace(/\n?```$/i, '');
+                const results = JSON.parse(jsonStr);
+
+                state.lastResults = results;
+                renderResults(results, criteria);
+                switchTab('results');
+                showStatus('Evaluation complete!', 'success');
+
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    showStatus('Evaluation timed out', 'error');
+                } else {
+                    showStatus(error.message || 'Evaluation failed', 'error');
+                }
+            } finally {
+                state.isRunning = false;
+                updateRunButton();
+            }
+        }
+
+        // ======================
+        // Render Results
+        // ======================
+        function renderResults(results, criteria) {
+            el.resultsEmpty.style.display = 'none';
+            el.resultsContent.style.display = 'block';
+
+            // Overall score
+            const score = results.overall_score || 0;
+            const scoreClass = score >= 75 ? 'good' : score >= 50 ? 'warning' : 'error';
+            el.overallScoreCircle.textContent = score;
+            el.overallScoreCircle.className = 'score-circle ' + scoreClass;
+            el.overallScoreTitle.textContent = score >= 75 ? 'Looking good!' : score >= 50 ? 'Needs improvement' : 'Significant issues';
+            el.overallScoreText.textContent = results.overall_summary || '';
+
+            // Per-category
+            el.resultsContainer.innerHTML = '';
+            criteria.forEach(key => {
+                const cat = results.categories?.[key];
+                if (!cat) return;
+
+                const meta = CRITERIA[key];
+                const catScore = cat.score || 0;
+                const catScoreClass = catScore >= 75 ? 'good' : catScore >= 50 ? 'warning' : 'error';
+
+                const section = document.createElement('div');
+                section.className = 'card result-category';
+
+                // Header
+                const header = document.createElement('div');
+                header.className = 'result-category-header';
+
+                const name = document.createElement('span');
+                name.className = 'result-category-name';
+                name.textContent = meta.name;
+
+                const badge = document.createElement('span');
+                badge.className = 'result-score score-' + catScoreClass;
+                badge.textContent = catScore + '/100';
+
+                header.appendChild(name);
+                header.appendChild(badge);
+                section.appendChild(header);
+
+                // Findings
+                if (cat.findings && cat.findings.length > 0) {
+                    const list = document.createElement('div');
+                    list.className = 'result-items';
+
+                    cat.findings.forEach(finding => {
+                        const item = document.createElement('div');
+                        item.className = 'result-item ' + (finding.type || 'info');
+
+                        const iconMap = { pass: 'CheckMark', warn: 'Warning', fail: 'ErrorBadge', info: 'Info' };
+                        const icon = document.createElement('i');
+                        icon.className = 'ms-Icon ms-Icon--' + (iconMap[finding.type] || 'Info');
+                        icon.setAttribute('aria-hidden', 'true');
+
+                        const text = document.createElement('span');
+                        text.textContent = finding.message;
+
+                        item.appendChild(icon);
+                        item.appendChild(text);
+                        list.appendChild(item);
+                    });
+
+                    section.appendChild(list);
+                }
+
+                el.resultsContainer.appendChild(section);
+            });
+        }
+
+    })();
+    </script>
+</body>
+</html>
