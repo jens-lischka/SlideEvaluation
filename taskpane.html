@@ -651,6 +651,33 @@
                 </div>
             </div>
 
+            <div class="api-key-section">
+                <div class="api-key-header">
+                    <label class="section-label" style="margin-bottom:0">Session Usage</label>
+                    <button class="btn-clear-history" id="btnResetUsage" style="font-size:12px;color:var(--gray-400);background:none;border:none;cursor:pointer;font-family:'Noto Sans',sans-serif;font-weight:500;">Reset</button>
+                </div>
+                <div class="usage-stats">
+                    <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--gray-100);">
+                        <span style="font-size:13px;color:var(--gray-500);">Analyses run</span>
+                        <span style="font-size:13px;font-weight:600;color:var(--black);" id="usageAnalyses">0</span>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--gray-100);">
+                        <span style="font-size:13px;color:var(--gray-500);">Input tokens</span>
+                        <span style="font-size:13px;font-weight:600;color:var(--black);" id="usageInputTokens">0</span>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--gray-100);">
+                        <span style="font-size:13px;color:var(--gray-500);">Output tokens</span>
+                        <span style="font-size:13px;font-weight:600;color:var(--black);" id="usageOutputTokens">0</span>
+                    </div>
+                    <div style="height:1px;background:var(--gray-200);margin:8px 0;"></div>
+                    <div style="display:flex;justify-content:space-between;padding:8px 0;">
+                        <span style="font-size:13px;font-weight:600;color:var(--black);">Estimated cost</span>
+                        <span style="font-size:16px;font-weight:600;color:var(--black);" id="usageCost">$0.00</span>
+                    </div>
+                </div>
+                <p style="font-size:11px;color:var(--gray-400);margin-top:12px;">GPT-4o: $2.50/1M input + $10/1M output. Vision images add ~1,000 tokens.</p>
+            </div>
+
             <div class="info-box" style="margin-top: 16px;">
                 <h3>How it works</h3>
                 <p>
@@ -676,8 +703,9 @@
         // ======================
         // Constants
         // ======================
-        const STORAGE_KEYS = { apiKey: 'slideeval_api_key' };
-        const GRID_SIZE = 20;
+        const STORAGE_KEYS = { apiKey: 'slideeval_api_key', usage: 'slideeval_usage' };
+        const PRICING = { inputPerMillion: 2.50, outputPerMillion: 10.00 };
+        const GRID_SIZE = 12;
 
         const CRITERIA = {
             layout:        { name: 'Layout',          icon: 'GridViewSmall' },
@@ -696,7 +724,8 @@
             isRunning: false,
             isRunningAttention: false,
             lastResults: null,
-            lastAttentionResult: null
+            lastAttentionResult: null,
+            usage: { totalInputTokens: 0, totalOutputTokens: 0, totalAnalyses: 0 }
         };
 
         // ======================
@@ -739,7 +768,12 @@
             // Settings
             apiKeyInput: $('apiKeyInput'),
             apiKeyStatus: $('apiKeyStatus'),
-            btnSaveKey: $('btnSaveKey')
+            btnSaveKey: $('btnSaveKey'),
+            usageAnalyses: $('usageAnalyses'),
+            usageInputTokens: $('usageInputTokens'),
+            usageOutputTokens: $('usageOutputTokens'),
+            usageCost: $('usageCost'),
+            btnResetUsage: $('btnResetUsage')
         };
 
         // ======================
@@ -767,6 +801,7 @@
             if (initialized) return;
             initialized = true;
             loadApiKey();
+            loadUsage();
             setupEventListeners();
             updateButtons();
         }
@@ -843,6 +878,7 @@
             // Settings
             el.btnSaveKey.addEventListener('click', saveApiKey);
             el.apiKeyInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') saveApiKey(); });
+            el.btnResetUsage.addEventListener('click', () => { if (confirm('Reset usage stats?')) resetUsage(); });
         }
 
         // ======================
@@ -901,6 +937,52 @@
         }
 
         // ======================
+        // Usage Tracking
+        // ======================
+        function loadUsage() {
+            const saved = storageGet(STORAGE_KEYS.usage);
+            if (saved) {
+                try {
+                    const p = JSON.parse(saved);
+                    state.usage.totalInputTokens = p.totalInputTokens || 0;
+                    state.usage.totalOutputTokens = p.totalOutputTokens || 0;
+                    state.usage.totalAnalyses = p.totalAnalyses || 0;
+                } catch (e) { /* ignore */ }
+            }
+            updateUsageDisplay();
+        }
+
+        function saveUsage() {
+            storageSet(STORAGE_KEYS.usage, JSON.stringify(state.usage));
+        }
+
+        function trackUsage(data) {
+            if (data.usage) {
+                state.usage.totalInputTokens += data.usage.prompt_tokens || 0;
+                state.usage.totalOutputTokens += data.usage.completion_tokens || 0;
+            }
+            state.usage.totalAnalyses += 1;
+            saveUsage();
+            updateUsageDisplay();
+        }
+
+        function resetUsage() {
+            state.usage = { totalInputTokens: 0, totalOutputTokens: 0, totalAnalyses: 0 };
+            saveUsage();
+            updateUsageDisplay();
+        }
+
+        function updateUsageDisplay() {
+            const fmt = (n) => n.toLocaleString('en-US');
+            el.usageAnalyses.textContent = fmt(state.usage.totalAnalyses);
+            el.usageInputTokens.textContent = fmt(state.usage.totalInputTokens);
+            el.usageOutputTokens.textContent = fmt(state.usage.totalOutputTokens);
+            const cost = (state.usage.totalInputTokens / 1e6) * PRICING.inputPerMillion
+                       + (state.usage.totalOutputTokens / 1e6) * PRICING.outputPerMillion;
+            el.usageCost.textContent = '$' + cost.toFixed(4);
+        }
+
+        // ======================
         // VISUAL ATTENTION
         // ======================
 
@@ -908,7 +990,21 @@
         async function captureSlideImage() {
             let base64 = null;
             await PowerPoint.run(async (context) => {
-                const slide = context.presentation.getSelectedSlides().getItemAt(0);
+                const slides = context.presentation.getSelectedSlides();
+                slides.load('items');
+                await context.sync();
+
+                if (!slides.items || slides.items.length === 0) {
+                    throw new Error('No slide selected');
+                }
+
+                const slide = slides.items[0];
+
+                // Check if exportAsBase64 is available
+                if (typeof slide.exportAsBase64 !== 'function') {
+                    throw new Error('Slide capture not supported in this Office version. Please update to Office 2021+ or Microsoft 365.');
+                }
+
                 const result = slide.exportAsBase64();
                 await context.sync();
                 base64 = result.value;
@@ -978,6 +1074,7 @@ Respond with JSON only, no markdown fences or extra text.`;
             }
 
             const data = await response.json();
+            trackUsage(data);
             const content = data.choices[0].message.content.trim();
             const jsonStr = content.replace(/^```json?\n?/i, '').replace(/\n?```$/i, '');
             return JSON.parse(jsonStr);
@@ -1108,22 +1205,38 @@ Respond with JSON only, no markdown fences or extra text.`;
             state.isRunningAttention = true;
             updateButtons();
 
+            // Progress timer
+            let seconds = 0;
+            let progressInterval = null;
+
             try {
                 showStatus('Capturing slide...', 'info', el.attentionStatus);
                 const base64Image = await captureSlideImage();
                 if (!base64Image) throw new Error('Failed to capture slide image');
 
-                showStatus('Analyzing visual attention...', 'info', el.attentionStatus);
+                showStatus('Analyzing visual attention (this may take 15-30s)...', 'info', el.attentionStatus);
+
+                // Show elapsed time
+                seconds = 0;
+                progressInterval = setInterval(() => {
+                    seconds++;
+                    showStatus('Analyzing visual attention (' + seconds + 's)...', 'info', el.attentionStatus);
+                }, 1000);
+
                 const analysis = await analyzeAttention(base64Image);
+
+                clearInterval(progressInterval);
+                progressInterval = null;
 
                 state.lastAttentionResult = analysis;
                 renderHeatmap(base64Image, analysis.grid);
                 renderAttentionResults(analysis);
-                showStatus('Analysis complete!', 'success', el.attentionStatus);
+                showStatus('Analysis complete in ' + seconds + 's!', 'success', el.attentionStatus);
 
             } catch (error) {
+                if (progressInterval) clearInterval(progressInterval);
                 if (error.name === 'AbortError') {
-                    showStatus('Analysis timed out', 'error', el.attentionStatus);
+                    showStatus('Analysis timed out after ' + seconds + 's', 'error', el.attentionStatus);
                 } else {
                     showStatus(error.message || 'Analysis failed', 'error', el.attentionStatus);
                 }
@@ -1212,6 +1325,7 @@ Respond with JSON only, no markdown fences or extra text.`;
                 if (!response.ok) { const err = await response.json(); throw new Error(err.error?.message || 'API request failed'); }
 
                 const data = await response.json();
+                trackUsage(data);
                 const content = data.choices[0].message.content.trim();
                 const jsonStr = content.replace(/^```json?\n?/i, '').replace(/\n?```$/i, '');
                 const results = JSON.parse(jsonStr);
