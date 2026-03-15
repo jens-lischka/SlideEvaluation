@@ -588,6 +588,12 @@
                         <span>Insert on Slide</span>
                     </button>
                 </div>
+                <button id="btnViewPrompt" type="button" style="display:none;width:100%;margin-top:8px;padding:10px;background:none;border:1px solid var(--gray-200);border-radius:var(--radius-btn);font-family:'Noto Sans',sans-serif;font-size:12px;color:var(--gray-500);cursor:pointer;text-align:left;">
+                    <i class="ms-Icon ms-Icon--Code" aria-hidden="true" style="margin-right:6px;"></i>View full prompt sent to API
+                </button>
+                <div id="promptReview" style="display:none;margin-top:8px;padding:12px;background:var(--gray-50);border-radius:var(--radius-sm);max-height:200px;overflow-y:auto;">
+                    <pre id="promptReviewText" style="font-size:11px;line-height:1.5;color:var(--gray-600);white-space:pre-wrap;word-wrap:break-word;font-family:'Noto Sans',monospace;margin:0;"></pre>
+                </div>
             </div>
 
             <!-- History -->
@@ -843,6 +849,7 @@
             currentImgBase64: null,
             refImageBase64: null,
             imgPromptLayers: null,
+            lastFullPrompt: '',
             usage: { totalInputTokens: 0, totalOutputTokens: 0, totalAnalyses: 0 }
         };
 
@@ -867,6 +874,9 @@
             imgPreview: $('imgPreview'),
             btnInsertImg: $('btnInsertImg'),
             btnExpandImg: $('btnExpandImg'),
+            btnViewPrompt: $('btnViewPrompt'),
+            promptReview: $('promptReview'),
+            promptReviewText: $('promptReviewText'),
             imgPreviewContainer: $('imgPreviewContainer'),
             btnUploadRef: $('btnUploadRef'),
             btnUseLastImage: $('btnUseLastImage'),
@@ -1000,6 +1010,11 @@
             el.imgPromptInput.addEventListener('input', updateButtons);
             el.btnInsertImg.addEventListener('click', insertGeneratedImage);
             el.btnExpandImg.addEventListener('click', expandTo16x9);
+            el.btnViewPrompt.addEventListener('click', () => {
+                const isVisible = el.promptReview.style.display !== 'none';
+                el.promptReview.style.display = isVisible ? 'none' : 'block';
+                el.btnViewPrompt.querySelector('span') || null;
+            });
             el.btnUploadRef.addEventListener('click', () => el.imgFileInput.click());
             el.imgFileInput.addEventListener('change', handleRefUpload);
             el.btnUseLastImage.addEventListener('click', useLastImageAsRef);
@@ -1438,6 +1453,7 @@
 
             try {
                 const fullPrompt = buildImagePrompt(prompt);
+                state.lastFullPrompt = fullPrompt;
                 const quality = el.imgQualitySelect.value;
 
                 showStatus('Generating image...', 'info', el.imgStatus);
@@ -1448,6 +1464,11 @@
                 el.imgPreviewContainer.style.aspectRatio = '1/1';
                 el.imgPreviewCard.style.display = 'block';
                 el.btnExpandImg.style.display = '';
+
+                // Show prompt review
+                el.btnViewPrompt.style.display = 'block';
+                el.promptReviewText.textContent = fullPrompt;
+                el.promptReview.style.display = 'none';
 
                 addToImgHistory(squareBase64, prompt);
 
@@ -1515,21 +1536,36 @@
             }
         }
 
-        // Insert generated image onto slide
+        // Insert generated image onto slide at actual dimensions (scaled to fit slide)
         function insertGeneratedImage() {
             if (!state.currentImgBase64) return;
             showStatus('Inserting...', 'info', el.imgStatus);
-            Office.context.document.setSelectedDataAsync(
-                state.currentImgBase64,
-                { coercionType: Office.CoercionType.Image, imageWidth: 720, imageHeight: 405 },
-                (result) => {
-                    if (result.status === Office.AsyncResultStatus.Succeeded) {
-                        showStatus('Image inserted!', 'success', el.imgStatus);
-                    } else {
-                        showStatus('Insert failed: ' + result.error.message, 'error', el.imgStatus);
+
+            // Detect actual image dimensions, scale to fit within slide (960x540pt)
+            const img = new Image();
+            img.onload = function() {
+                const maxW = 960;
+                const maxH = 540;
+                let w = img.width;
+                let h = img.height;
+                // Scale down to fit slide while preserving aspect ratio
+                const scale = Math.min(maxW / w, maxH / h, 1);
+                w = Math.round(w * scale);
+                h = Math.round(h * scale);
+
+                Office.context.document.setSelectedDataAsync(
+                    state.currentImgBase64,
+                    { coercionType: Office.CoercionType.Image, imageWidth: w, imageHeight: h },
+                    (result) => {
+                        if (result.status === Office.AsyncResultStatus.Succeeded) {
+                            showStatus('Image inserted (' + w + '\u00d7' + h + 'pt)!', 'success', el.imgStatus);
+                        } else {
+                            showStatus('Insert failed: ' + result.error.message, 'error', el.imgStatus);
+                        }
                     }
-                }
-            );
+                );
+            };
+            img.src = 'data:image/png;base64,' + state.currentImgBase64;
         }
 
         // ======================
