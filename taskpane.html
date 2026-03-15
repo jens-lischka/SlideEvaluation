@@ -457,6 +457,35 @@
         }
         .focus-area-text { font-size: 13px; color: var(--gray-600); }
 
+        /* Prompt textarea */
+        .prompt-textarea {
+            width: 100%;
+            min-height: 80px;
+            padding: 0 0 12px 0;
+            border: none;
+            border-bottom: 1px solid var(--gray-300);
+            font-family: 'Noto Sans', sans-serif;
+            font-size: 14px;
+            line-height: 1.6;
+            resize: none;
+            transition: border-color 0.2s;
+            background: transparent;
+        }
+        .prompt-textarea:focus { outline: none; border-bottom-color: var(--black); }
+        .prompt-textarea::placeholder { color: var(--gray-400); }
+
+        /* Image history items */
+        .img-history-item {
+            aspect-ratio: 3/2;
+            border-radius: 6px;
+            overflow: hidden;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: border-color 0.2s;
+        }
+        .img-history-item:hover { border-color: var(--black); }
+        .img-history-item img { width: 100%; height: 100%; object-fit: cover; }
+
         /* Focus styles */
         .tab:focus-visible,
         .scope-btn:focus-visible,
@@ -478,7 +507,10 @@
     <div class="taskpane">
         <!-- Tabs -->
         <div class="tabs" role="tablist" aria-label="Main navigation">
-            <button class="tab active" data-tab="attention" role="tab" aria-selected="true" aria-controls="tab-attention" id="tabBtn-attention">
+            <button class="tab active" data-tab="images" role="tab" aria-selected="true" aria-controls="tab-images" id="tabBtn-images">
+                <i class="ms-Icon ms-Icon--Camera" aria-hidden="true"></i><span>Images</span>
+            </button>
+            <button class="tab" data-tab="attention" role="tab" aria-selected="false" aria-controls="tab-attention" id="tabBtn-attention">
                 <i class="ms-Icon ms-Icon--RedEye" aria-hidden="true"></i><span>Attention</span>
             </button>
             <button class="tab" data-tab="evaluate" role="tab" aria-selected="false" aria-controls="tab-evaluate" id="tabBtn-evaluate">
@@ -492,8 +524,79 @@
             </button>
         </div>
 
+        <!-- ==================== IMAGES TAB ==================== -->
+        <div class="tab-content active" id="tab-images" role="tabpanel" aria-labelledby="tabBtn-images">
+
+            <div class="card">
+                <label class="section-label">Describe your image</label>
+                <textarea id="imgPromptInput" class="prompt-textarea" placeholder="A busy Tokyo street at dusk, neon reflections on wet pavement, candid pedestrians..."></textarea>
+            </div>
+
+            <!-- Reference image upload / iterate on previous -->
+            <div class="card">
+                <label class="section-label">Reference Image (optional)</label>
+                <div style="display:flex;gap:8px;">
+                    <button class="btn-ref" id="btnUploadRef" type="button" style="flex:1;padding:12px;background:var(--gray-100);border:1px dashed var(--gray-300);border-radius:var(--radius-btn);cursor:pointer;font-family:'Noto Sans',sans-serif;font-size:12px;color:var(--gray-500);text-align:center;">
+                        <i class="ms-Icon ms-Icon--Upload" aria-hidden="true" style="display:block;font-size:18px;margin-bottom:4px;"></i>Upload Image
+                    </button>
+                    <button class="btn-ref" id="btnUseLastImage" type="button" disabled style="flex:1;padding:12px;background:var(--gray-100);border:1px dashed var(--gray-300);border-radius:var(--radius-btn);cursor:pointer;font-family:'Noto Sans',sans-serif;font-size:12px;color:var(--gray-500);text-align:center;">
+                        <i class="ms-Icon ms-Icon--Edit" aria-hidden="true" style="display:block;font-size:18px;margin-bottom:4px;"></i>Edit Last Image
+                    </button>
+                </div>
+                <input type="file" id="imgFileInput" accept="image/png,image/jpeg,image/webp" style="display:none;">
+                <div id="refPreview" style="display:none;margin-top:12px;position:relative;">
+                    <img id="refPreviewImg" style="width:100%;border-radius:var(--radius-sm);max-height:120px;object-fit:contain;background:var(--gray-100);" alt="Reference image">
+                    <button id="btnClearRef" type="button" style="position:absolute;top:4px;right:4px;width:24px;height:24px;border-radius:50%;border:none;background:var(--black);color:var(--white);cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;">&times;</button>
+                </div>
+            </div>
+
+            <!-- Quality -->
+            <div class="card" style="padding:14px 20px;">
+                <div style="display:flex;align-items:center;gap:12px;">
+                    <label style="font-size:11px;font-weight:600;color:var(--gray-400);text-transform:uppercase;letter-spacing:1px;white-space:nowrap;">Quality</label>
+                    <select id="imgQualitySelect" style="flex:1;padding:8px 0;border:none;border-bottom:1px solid var(--gray-300);font-family:'Noto Sans',sans-serif;font-size:13px;background:transparent;cursor:pointer;">
+                        <option value="medium">Medium</option>
+                        <option value="low">Low (faster)</option>
+                        <option value="high">High</option>
+                    </select>
+                </div>
+            </div>
+
+            <button class="btn-run" id="btnGenerateImg" disabled>
+                <span>Generate Image</span>
+            </button>
+
+            <div id="imgStatus" class="status-message" role="status" aria-live="polite">
+                <i class="ms-Icon" aria-hidden="true"></i><span></span>
+            </div>
+
+            <!-- Preview -->
+            <div id="imgPreviewCard" class="card" style="display:none;">
+                <label class="section-label">Generated Image</label>
+                <div style="position:relative;width:100%;border-radius:var(--radius-sm);overflow:hidden;background:var(--gray-100);aspect-ratio:1536/1024;">
+                    <img id="imgPreview" style="width:100%;height:100%;object-fit:contain;display:block;" alt="Generated image">
+                </div>
+                <div style="display:flex;gap:8px;margin-top:12px;">
+                    <button class="btn-run" id="btnInsertImg" style="flex:1;margin-top:0;font-size:13px;padding:12px 16px;">
+                        <span>Insert on Slide</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- History -->
+            <div class="card" id="imgHistoryCard">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                    <label class="section-label" style="margin-bottom:0">Recent Images</label>
+                    <button id="btnClearImgHistory" type="button" style="font-size:12px;color:var(--gray-400);background:none;border:none;cursor:pointer;font-family:'Noto Sans',sans-serif;">Clear</button>
+                </div>
+                <div id="imgHistoryGrid" style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;">
+                    <div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--gray-400);font-size:12px;">No images yet</div>
+                </div>
+            </div>
+        </div>
+
         <!-- ==================== VISUAL ATTENTION TAB ==================== -->
-        <div class="tab-content active" id="tab-attention" role="tabpanel" aria-labelledby="tabBtn-attention">
+        <div class="tab-content" id="tab-attention" role="tabpanel" aria-labelledby="tabBtn-attention">
 
             <!-- Heatmap Display -->
             <div class="card">
@@ -681,16 +784,17 @@
             <div class="info-box" style="margin-top: 16px;">
                 <h3>How it works</h3>
                 <p>
-                    <strong>Visual Attention</strong> captures the current slide as an image and uses GPT-4o vision to predict where viewers will focus, displayed as a heatmap overlay.<br><br>
-                    <strong>Evaluate</strong> extracts text and layout data and checks against criteria: layout, writing style, content clarity, accessibility, and focal point.<br><br>
+                    <strong>Images</strong> generates realistic photos using OpenAI. Supports editing/inpainting with reference images. Style: street photography, editorial, candid corporate.<br><br>
+                    <strong>Attention</strong> captures the current slide and predicts where viewers will focus, displayed as a heatmap overlay.<br><br>
+                    <strong>Evaluate</strong> checks slides against layout, writing, clarity, accessibility, and focal point criteria.<br><br>
                     Your API key is stored locally in this browser only.
                 </p>
             </div>
 
             <div class="info-box" style="margin-top: 12px;">
                 <h3>About</h3>
-                <p><strong>Slide Evaluation</strong><br>Version 1.1<br><br>
-                    Analyze visual attention and evaluate your PowerPoint slides against best practices.
+                <p><strong>Slide Evaluation</strong><br>Version 1.2<br><br>
+                    Generate images, analyze visual attention, and evaluate your PowerPoint slides.
                 </p>
             </div>
         </div>
@@ -703,7 +807,8 @@
         // ======================
         // Constants
         // ======================
-        const STORAGE_KEYS = { apiKey: 'slideeval_api_key', usage: 'slideeval_usage' };
+        const STORAGE_KEYS = { apiKey: 'slideeval_api_key', usage: 'slideeval_usage', imgHistory: 'slideeval_img_history' };
+        const IMG_HISTORY_MAX = 10;
         const PRICING = { inputPerMillion: 2.50, outputPerMillion: 10.00 };
         const GRID_SIZE = 12;
 
@@ -725,6 +830,12 @@
             isRunningAttention: false,
             lastResults: null,
             lastAttentionResult: null,
+            // Image generation
+            isGeneratingImg: false,
+            imgHistory: [],
+            currentImgBase64: null,
+            refImageBase64: null,
+            imgSystemPrompt: '',
             usage: { totalInputTokens: 0, totalOutputTokens: 0, totalAnalyses: 0 }
         };
 
@@ -739,6 +850,22 @@
             get tabContents() { return $$('.tab-content'); },
             get scopeBtns() { return $$('.scope-btn'); },
             get checkboxes() { return $$('.check-item input[type="checkbox"]'); },
+            // Images tab
+            imgPromptInput: $('imgPromptInput'),
+            imgQualitySelect: $('imgQualitySelect'),
+            btnGenerateImg: $('btnGenerateImg'),
+            imgStatus: $('imgStatus'),
+            imgPreviewCard: $('imgPreviewCard'),
+            imgPreview: $('imgPreview'),
+            btnInsertImg: $('btnInsertImg'),
+            btnUploadRef: $('btnUploadRef'),
+            btnUseLastImage: $('btnUseLastImage'),
+            imgFileInput: $('imgFileInput'),
+            refPreview: $('refPreview'),
+            refPreviewImg: $('refPreviewImg'),
+            btnClearRef: $('btnClearRef'),
+            imgHistoryGrid: $('imgHistoryGrid'),
+            btnClearImgHistory: $('btnClearImgHistory'),
             // Attention tab
             btnRunAttention: $('btnRunAttention'),
             attentionStatus: $('attentionStatus'),
@@ -787,6 +914,10 @@
             try { localStorage.setItem(key, value); } catch (e) { /* ignore */ }
         }
 
+        function storageRemove(key) {
+            try { localStorage.removeItem(key); } catch (e) { /* ignore */ }
+        }
+
         // ======================
         // Init
         // ======================
@@ -802,6 +933,8 @@
             initialized = true;
             loadApiKey();
             loadUsage();
+            loadImgHistory();
+            loadSystemPrompt();
             setupEventListeners();
             updateButtons();
         }
@@ -852,6 +985,16 @@
         function setupEventListeners() {
             el.tabs.forEach(tab => tab.addEventListener('click', () => switchTab(tab.dataset.tab)));
 
+            // Images tab
+            el.btnGenerateImg.addEventListener('click', generateImage);
+            el.imgPromptInput.addEventListener('input', updateButtons);
+            el.btnInsertImg.addEventListener('click', insertGeneratedImage);
+            el.btnUploadRef.addEventListener('click', () => el.imgFileInput.click());
+            el.imgFileInput.addEventListener('change', handleRefUpload);
+            el.btnUseLastImage.addEventListener('click', useLastImageAsRef);
+            el.btnClearRef.addEventListener('click', clearRefImage);
+            el.btnClearImgHistory.addEventListener('click', clearImgHistory);
+
             // Attention tab
             el.btnRunAttention.addEventListener('click', runAttentionAnalysis);
             el.heatmapOpacity.addEventListener('input', () => {
@@ -886,6 +1029,19 @@
         // ======================
         function updateButtons() {
             const hasKey = state.apiKey.length > 0;
+
+            // Image generate button
+            el.btnGenerateImg.disabled = !hasKey || !el.imgPromptInput.value.trim() || state.isGeneratingImg;
+            if (state.isGeneratingImg) {
+                el.btnGenerateImg.classList.add('loading');
+                el.btnGenerateImg.innerHTML = '<div class="spinner"></div><span>Generating...</span>';
+            } else {
+                el.btnGenerateImg.classList.remove('loading');
+                el.btnGenerateImg.innerHTML = '<span>Generate Image</span>';
+            }
+
+            // Edit last image button
+            el.btnUseLastImage.disabled = !state.currentImgBase64;
 
             // Attention button
             el.btnRunAttention.disabled = !hasKey || state.isRunningAttention;
@@ -980,6 +1136,269 @@
             const cost = (state.usage.totalInputTokens / 1e6) * PRICING.inputPerMillion
                        + (state.usage.totalOutputTokens / 1e6) * PRICING.outputPerMillion;
             el.usageCost.textContent = '$' + cost.toFixed(4);
+        }
+
+        // ======================
+        // IMAGE GENERATION
+        // ======================
+
+        async function loadSystemPrompt() {
+            try {
+                const resp = await fetch('image-system-prompt.json');
+                if (resp.ok) {
+                    const data = await resp.json();
+                    state.imgSystemPrompt = data.system_prompt || '';
+                }
+            } catch (e) {
+                console.log('System prompt not loaded, using default');
+                state.imgSystemPrompt = '';
+            }
+        }
+
+        function loadImgHistory() {
+            const saved = storageGet(STORAGE_KEYS.imgHistory);
+            if (saved) {
+                try { state.imgHistory = JSON.parse(saved); } catch (e) { state.imgHistory = []; }
+                renderImgHistory();
+            }
+        }
+
+        function saveImgHistory() {
+            // Save only thumbnails + prompts, not full images (too large)
+            const toSave = state.imgHistory.map(item => ({
+                thumb: item.thumb, prompt: item.prompt
+            }));
+            storageSet(STORAGE_KEYS.imgHistory, JSON.stringify(toSave));
+        }
+
+        function addToImgHistory(base64, prompt) {
+            // Create thumbnail
+            const img = new Image();
+            img.onload = function() {
+                const canvas = document.createElement('canvas');
+                const maxSize = 120;
+                let w = img.width, h = img.height;
+                if (w > h) { if (w > maxSize) { h = h * (maxSize / w); w = maxSize; } }
+                else { if (h > maxSize) { w = w * (maxSize / h); h = maxSize; } }
+                canvas.width = w;
+                canvas.height = h;
+                canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                const thumb = canvas.toDataURL('image/jpeg', 0.5);
+
+                state.imgHistory.unshift({ thumb: thumb, full: 'data:image/png;base64,' + base64, prompt: prompt });
+                if (state.imgHistory.length > IMG_HISTORY_MAX) {
+                    state.imgHistory = state.imgHistory.slice(0, IMG_HISTORY_MAX);
+                }
+                saveImgHistory();
+                renderImgHistory();
+            };
+            img.src = 'data:image/png;base64,' + base64;
+        }
+
+        function renderImgHistory() {
+            const grid = el.imgHistoryGrid;
+            if (state.imgHistory.length === 0) {
+                grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--gray-400);font-size:12px;">No images yet</div>';
+                return;
+            }
+            grid.innerHTML = '';
+            state.imgHistory.forEach((item, i) => {
+                const div = document.createElement('div');
+                div.className = 'img-history-item';
+                div.title = item.prompt || '';
+                div.tabIndex = 0;
+                const img = document.createElement('img');
+                img.src = item.thumb || item.full;
+                img.alt = 'Generated image';
+                div.appendChild(img);
+                div.addEventListener('click', () => loadFromImgHistory(i));
+                div.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); loadFromImgHistory(i); }
+                });
+                grid.appendChild(div);
+            });
+        }
+
+        function loadFromImgHistory(index) {
+            const item = state.imgHistory[index];
+            if (!item) return;
+
+            if (item.full) {
+                state.currentImgBase64 = item.full.split(',')[1];
+                el.imgPreview.src = item.full;
+            } else {
+                el.imgPreview.src = item.thumb;
+                state.currentImgBase64 = item.thumb.split(',')[1];
+            }
+            el.imgPreviewCard.style.display = 'block';
+            el.imgPromptInput.value = item.prompt || '';
+            updateButtons();
+            showStatus('Image loaded from history', 'info', el.imgStatus);
+        }
+
+        function clearImgHistory() {
+            state.imgHistory = [];
+            storageRemove(STORAGE_KEYS.imgHistory);
+            renderImgHistory();
+        }
+
+        // Reference image handling
+        function handleRefUpload() {
+            const file = el.imgFileInput.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                state.refImageBase64 = e.target.result.split(',')[1];
+                el.refPreviewImg.src = e.target.result;
+                el.refPreview.style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+            el.imgFileInput.value = '';
+        }
+
+        function useLastImageAsRef() {
+            if (!state.currentImgBase64) return;
+            state.refImageBase64 = state.currentImgBase64;
+            el.refPreviewImg.src = 'data:image/png;base64,' + state.currentImgBase64;
+            el.refPreview.style.display = 'block';
+            showStatus('Last image set as reference for editing', 'info', el.imgStatus);
+        }
+
+        function clearRefImage() {
+            state.refImageBase64 = null;
+            el.refPreview.style.display = 'none';
+        }
+
+        // Generate image via OpenAI
+        async function generateImage() {
+            const prompt = el.imgPromptInput.value.trim();
+            if (!prompt || !state.apiKey || state.isGeneratingImg) return;
+
+            state.isGeneratingImg = true;
+            updateButtons();
+
+            let seconds = 0;
+            let progressInterval = setInterval(() => {
+                seconds++;
+                showStatus('Generating (' + seconds + 's)...', 'info', el.imgStatus);
+            }, 1000);
+
+            try {
+                showStatus('Generating image...', 'info', el.imgStatus);
+
+                // Build the prompt with system context
+                const fullPrompt = state.imgSystemPrompt
+                    ? state.imgSystemPrompt + '\n\nUser request: ' + prompt
+                    : prompt;
+
+                const body = {
+                    model: 'gpt-image-1',
+                    prompt: fullPrompt,
+                    n: 1,
+                    size: '1536x1024',
+                    quality: el.imgQualitySelect.value
+                };
+
+                // If reference image provided, include it for editing
+                let fetchOptions;
+                if (state.refImageBase64) {
+                    // Use multipart form for image editing
+                    const formData = new FormData();
+                    // Convert base64 to blob
+                    const byteChars = atob(state.refImageBase64);
+                    const byteArray = new Uint8Array(byteChars.length);
+                    for (let i = 0; i < byteChars.length; i++) byteArray[i] = byteChars.charCodeAt(i);
+                    const blob = new Blob([byteArray], { type: 'image/png' });
+                    formData.append('image', blob, 'reference.png');
+                    formData.append('prompt', fullPrompt);
+                    formData.append('model', 'gpt-image-1');
+                    formData.append('n', '1');
+                    formData.append('size', '1536x1024');
+                    formData.append('quality', el.imgQualitySelect.value);
+
+                    fetchOptions = {
+                        method: 'POST',
+                        headers: { 'Authorization': 'Bearer ' + state.apiKey },
+                        body: formData
+                    };
+                } else {
+                    fetchOptions = {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + state.apiKey
+                        },
+                        body: JSON.stringify(body)
+                    };
+                }
+
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 120000);
+                fetchOptions.signal = controller.signal;
+
+                const endpoint = state.refImageBase64
+                    ? 'https://api.openai.com/v1/images/edits'
+                    : 'https://api.openai.com/v1/images/generations';
+
+                const response = await fetch(endpoint, fetchOptions);
+                clearTimeout(timeoutId);
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.error?.message || 'Image generation failed');
+                }
+
+                const data = await response.json();
+
+                // Track usage if available
+                if (data.usage) {
+                    state.usage.totalInputTokens += data.usage.input_tokens || data.usage.prompt_tokens || 0;
+                    state.usage.totalOutputTokens += data.usage.output_tokens || data.usage.completion_tokens || 0;
+                }
+                state.usage.totalAnalyses += 1;
+                saveUsage();
+                updateUsageDisplay();
+
+                const base64Data = data.data[0].b64_json;
+                state.currentImgBase64 = base64Data;
+
+                el.imgPreview.src = 'data:image/png;base64,' + base64Data;
+                el.imgPreviewCard.style.display = 'block';
+
+                addToImgHistory(base64Data, prompt);
+
+                clearInterval(progressInterval);
+                progressInterval = null;
+                showStatus('Image generated in ' + seconds + 's!', 'success', el.imgStatus);
+
+            } catch (error) {
+                clearInterval(progressInterval);
+                if (error.name === 'AbortError') {
+                    showStatus('Generation timed out', 'error', el.imgStatus);
+                } else {
+                    showStatus(error.message || 'Generation failed', 'error', el.imgStatus);
+                }
+            } finally {
+                state.isGeneratingImg = false;
+                updateButtons();
+            }
+        }
+
+        // Insert generated image onto slide
+        function insertGeneratedImage() {
+            if (!state.currentImgBase64) return;
+            showStatus('Inserting...', 'info', el.imgStatus);
+            Office.context.document.setSelectedDataAsync(
+                state.currentImgBase64,
+                { coercionType: Office.CoercionType.Image, imageWidth: 600, imageHeight: 400 },
+                (result) => {
+                    if (result.status === Office.AsyncResultStatus.Succeeded) {
+                        showStatus('Image inserted!', 'success', el.imgStatus);
+                    } else {
+                        showStatus('Insert failed: ' + result.error.message, 'error', el.imgStatus);
+                    }
+                }
+            );
         }
 
         // ======================
