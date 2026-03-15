@@ -620,7 +620,7 @@
                     <label class="section-label" style="margin-bottom:0">Recent Images</label>
                     <button id="btnClearImgHistory" type="button" style="font-size:12px;color:var(--gray-400);background:none;border:none;cursor:pointer;font-family:'Noto Sans',sans-serif;">Clear</button>
                 </div>
-                <div id="imgHistoryGrid" style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;">
+                <div id="imgHistoryGrid" style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;min-width:0;">
                     <div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--gray-400);font-size:12px;">No images yet</div>
                 </div>
             </div>
@@ -839,7 +839,7 @@
         // Constants
         // ======================
         const STORAGE_KEYS = { apiKey: 'slideeval_api_key', usage: 'slideeval_usage', imgHistory: 'slideeval_img_history' };
-        const IMG_HISTORY_MAX = 10;
+        const IMG_HISTORY_MAX = 5;
         const PRICING = { inputPerMillion: 2.50, outputPerMillion: 10.00 };
         const GRID_SIZE = 12;
 
@@ -1258,7 +1258,7 @@
                 canvas.width = w;
                 canvas.height = h;
                 canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-                const thumb = canvas.toDataURL('image/jpeg', 0.5);
+                const thumb = canvas.toDataURL('image/jpeg', 0.4);
 
                 state.imgHistory.unshift({ thumb: thumb, full: 'data:image/png;base64,' + base64, prompt: prompt });
                 if (state.imgHistory.length > IMG_HISTORY_MAX) {
@@ -1298,21 +1298,16 @@
             const item = state.imgHistory[index];
             if (!item) return;
 
-            if (item.full) {
-                state.currentImgBase64 = item.full.split(',')[1];
-                el.imgPreview.src = item.full;
-                el.imgPreviewContainer.style.aspectRatio = '';
-                showStatus('Image loaded from history', 'info', el.imgStatus);
-            } else {
-                state.currentImgBase64 = null;
-                el.imgPreview.src = item.thumb;
-                el.imgPreviewContainer.style.aspectRatio = '';
-                showStatus('Preview only (low res). Regenerate for full quality.', 'info', el.imgStatus);
-            }
+            const src = item.full || item.thumb;
+            state.currentImgBase64 = src.split(',')[1];
+            el.imgPreview.src = src;
+            el.imgPreviewContainer.style.aspectRatio = '';
             el.imgPreviewCard.style.display = 'block';
-            el.btnExpandImg.style.display = state.currentImgBase64 ? '' : 'none';
+            el.btnExpandImg.style.display = '';
+            el.imgVersionPicker.style.display = 'none';
             el.imgPromptInput.value = item.prompt || '';
             updateButtons();
+            showStatus(item.full ? 'Image loaded from history' : 'Loaded (reduced quality — regenerate for full res)', 'info', el.imgStatus);
         }
 
         function clearImgHistory() {
