@@ -1,5 +1,8 @@
 {
-    "layer_camera": "Shot with a professional full-frame mirrorless camera.\nLens: 85mm prime lens\nAperture: f/2.8\nShallow depth of field with natural bokeh.",
-    "layer_realism": "Ultra-photorealistic real-world photograph.\nPhysically accurate lighting, shadows, reflections, and materials.\nNatural RAW color science and extremely detailed textures.\nThe image must be indistinguishable from a real photograph.\nAvoid illustration, CGI rendering, cartoon style, artificial textures, or unrealistic lighting.",
-    "token_stack": "Professional photography, full-frame mirrorless camera, 85mm prime lens, shallow depth of field, natural optical bokeh, realistic lens optics, physically accurate lighting, high dynamic range, natural color science, RAW photograph, subtle film grain, realistic micro-textures."
+    "layer_camera": "Captured with a professional full-frame mirrorless camera using an 85mm prime lens at f/2.8, creating natural depth of field and soft background bokeh.",
+    "layer_environment": "Authentic real-world environment with natural details, textures, and context-appropriate elements.",
+    "layer_lighting": "Natural daylight with physically accurate shadows, reflections, and realistic light falloff.",
+    "layer_textures": "Fine micro-textures visible on all surfaces, materials, skin, and fabrics.",
+    "layer_color": "True-to-life color science, natural RAW photograph look with subtle film grain.",
+    "layer_style": "Editorial photography style, extremely detailed, indistinguishable from a real photograph."
 }

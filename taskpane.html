@@ -530,9 +530,9 @@
 
             <div class="card">
                 <label class="section-label">Describe your scene</label>
-                <textarea id="imgPromptInput" class="prompt-textarea" maxlength="1000" placeholder="Subject: a red fox&#10;Scene: standing in a snowy forest clearing at sunrise&#10;Environment: snow-covered pine trees and light morning fog"></textarea>
+                <textarea id="imgPromptInput" class="prompt-textarea" maxlength="1000" placeholder="A young Korean woman and a Caucasian boy walking together along a busy street in South Korea, authentic urban environment with storefronts, signage, and pedestrians"></textarea>
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;">
-                    <span style="font-size:11px;color:var(--gray-400);">Describe subject, scene, and environment</span>
+                    <span style="font-size:11px;color:var(--gray-400);">Describe subject + scene + environment context</span>
                     <span id="imgWordCount" style="font-size:11px;font-weight:600;color:var(--gray-400);">0 / 150 words</span>
                 </div>
             </div>
@@ -1209,14 +1209,20 @@
             }
         }
 
-        // Build the full prompt: user scene + camera + realism + token stack
+        // Build the full prompt: user scene + camera + environment + lighting + textures + color + style
         function buildImagePrompt(userScene) {
-            const layers = state.imgPromptLayers;
-            if (!layers) return userScene;
-            return userScene.trim()
-                + '\n\n' + (layers.layer_camera || '')
-                + '\n\n' + (layers.layer_realism || '')
-                + '\n\n' + (layers.token_stack || '');
+            const L = state.imgPromptLayers;
+            if (!L) return userScene;
+            const parts = [
+                userScene.trim(),
+                L.layer_camera,
+                L.layer_environment,
+                L.layer_lighting,
+                L.layer_textures,
+                L.layer_color,
+                L.layer_style
+            ];
+            return parts.filter(Boolean).join('\n\n');
         }
 
         function loadImgHistory() {
