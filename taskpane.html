@@ -530,9 +530,9 @@
 
             <div class="card">
                 <label class="section-label">Describe your scene</label>
-                <textarea id="imgPromptInput" class="prompt-textarea" maxlength="1000" placeholder="A young Korean woman and a Caucasian boy walking together along a busy street in South Korea, authentic urban environment with storefronts, signage, and pedestrians"></textarea>
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;">
-                    <span style="font-size:11px;color:var(--gray-400);">Describe subject + scene + environment context</span>
+                <textarea id="imgPromptInput" class="prompt-textarea" maxlength="1000" placeholder="Two colleagues having coffee in a modern office lounge, morning light through large windows, relaxed conversation"></textarea>
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-top:6px;">
+                    <span style="font-size:11px;color:var(--gray-400);line-height:1.5;">Who or what + doing what + where + time of day/mood</span>
                     <span id="imgWordCount" style="font-size:11px;font-weight:600;color:var(--gray-400);">0 / 150 words</span>
                 </div>
             </div>
@@ -815,7 +815,7 @@
             <div class="info-box" style="margin-top: 16px;">
                 <h3>How it works</h3>
                 <p>
-                    <strong>Images</strong> generates realistic photos using OpenAI. Supports editing/inpainting with reference images. Style: street photography, editorial, candid corporate.<br><br>
+                    <strong>Images</strong> generates realistic photos using OpenAI. Your rough description is auto-optimized into a professional 6-layer photography prompt. Supports editing with reference images.<br><br>
                     <strong>Attention</strong> captures the current slide and predicts where viewers will focus, displayed as a heatmap overlay.<br><br>
                     <strong>Evaluate</strong> checks slides against layout, writing, clarity, accessibility, and focal point criteria.<br><br>
                     Your API key is stored locally in this browser only.
@@ -1209,20 +1209,38 @@
             }
         }
 
-        // Build the full prompt: user scene + camera + environment + lighting + textures + color + style
-        function buildImagePrompt(userScene) {
-            const L = state.imgPromptLayers;
-            if (!L) return userScene;
-            const parts = [
-                userScene.trim(),
-                L.layer_camera,
-                L.layer_environment,
-                L.layer_lighting,
-                L.layer_textures,
-                L.layer_color,
-                L.layer_style
-            ];
-            return parts.filter(Boolean).join('\n\n');
+        // Optimize user prompt via GPT-4o-mini into the 6-layer structure
+        async function buildImagePrompt(userScene) {
+            const systemPrompt = state.imgPromptLayers?.optimizer_system;
+            if (!systemPrompt || !state.apiKey) return userScene;
+
+            const response = await fetch('https://api.openai.com/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + state.apiKey
+                },
+                body: JSON.stringify({
+                    model: 'gpt-4o-mini',
+                    messages: [
+                        { role: 'system', content: systemPrompt },
+                        { role: 'user', content: userScene.trim() }
+                    ],
+                    temperature: 0.4,
+                    max_tokens: 300
+                })
+            });
+
+            if (!response.ok) return userScene;
+
+            const data = await response.json();
+            if (data.usage) {
+                state.usage.totalInputTokens += data.usage.prompt_tokens || 0;
+                state.usage.totalOutputTokens += data.usage.completion_tokens || 0;
+                saveUsage();
+                updateUsageDisplay();
+            }
+            return data.choices[0].message.content.trim();
         }
 
         function loadImgHistory() {
@@ -1521,7 +1539,8 @@
             }, 1000);
 
             try {
-                const fullPrompt = buildImagePrompt(prompt);
+                showStatus('Optimizing prompt...', 'info', el.imgStatus);
+                const fullPrompt = await buildImagePrompt(prompt);
                 state.lastFullPrompt = fullPrompt;
                 const quality = el.imgQualitySelect.value;
 
