@@ -528,8 +528,12 @@
         <div class="tab-content active" id="tab-images" role="tabpanel" aria-labelledby="tabBtn-images">
 
             <div class="card">
-                <label class="section-label">Describe your image</label>
-                <textarea id="imgPromptInput" class="prompt-textarea" placeholder="A busy Tokyo street at dusk, neon reflections on wet pavement, candid pedestrians..."></textarea>
+                <label class="section-label">Describe your scene</label>
+                <textarea id="imgPromptInput" class="prompt-textarea" maxlength="1000" placeholder="Subject: a red fox&#10;Scene: standing in a snowy forest clearing at sunrise&#10;Environment: snow-covered pine trees and light morning fog"></textarea>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;">
+                    <span style="font-size:11px;color:var(--gray-400);">Describe subject, scene, and environment</span>
+                    <span id="imgWordCount" style="font-size:11px;font-weight:600;color:var(--gray-400);">0 / 150 words</span>
+                </div>
             </div>
 
             <!-- Reference image upload / iterate on previous -->
@@ -835,7 +839,7 @@
             imgHistory: [],
             currentImgBase64: null,
             refImageBase64: null,
-            imgSystemPrompt: '',
+            imgPromptLayers: null,
             usage: { totalInputTokens: 0, totalOutputTokens: 0, totalAnalyses: 0 }
         };
 
@@ -852,6 +856,7 @@
             get checkboxes() { return $$('.check-item input[type="checkbox"]'); },
             // Images tab
             imgPromptInput: $('imgPromptInput'),
+            imgWordCount: $('imgWordCount'),
             imgQualitySelect: $('imgQualitySelect'),
             btnGenerateImg: $('btnGenerateImg'),
             imgStatus: $('imgStatus'),
@@ -1030,8 +1035,14 @@
         function updateButtons() {
             const hasKey = state.apiKey.length > 0;
 
+            // Image word count
+            const words = el.imgPromptInput.value.trim() ? el.imgPromptInput.value.trim().split(/\s+/).length : 0;
+            const overLimit = words > 150;
+            el.imgWordCount.textContent = words + ' / 150 words';
+            el.imgWordCount.style.color = overLimit ? 'var(--error)' : 'var(--gray-400)';
+
             // Image generate button
-            el.btnGenerateImg.disabled = !hasKey || !el.imgPromptInput.value.trim() || state.isGeneratingImg;
+            el.btnGenerateImg.disabled = !hasKey || !el.imgPromptInput.value.trim() || overLimit || state.isGeneratingImg;
             if (state.isGeneratingImg) {
                 el.btnGenerateImg.classList.add('loading');
                 el.btnGenerateImg.innerHTML = '<div class="spinner"></div><span>Generating...</span>';
@@ -1146,13 +1157,21 @@
             try {
                 const resp = await fetch('image-system-prompt.json');
                 if (resp.ok) {
-                    const data = await resp.json();
-                    state.imgSystemPrompt = data.system_prompt || '';
+                    state.imgPromptLayers = await resp.json();
                 }
             } catch (e) {
-                console.log('System prompt not loaded, using default');
-                state.imgSystemPrompt = '';
+                console.log('System prompt not loaded, using defaults');
             }
+        }
+
+        // Build the full prompt: user scene + camera + realism + token stack
+        function buildImagePrompt(userScene) {
+            const layers = state.imgPromptLayers;
+            if (!layers) return userScene;
+            return userScene.trim()
+                + '\n\n' + (layers.layer_camera || '')
+                + '\n\n' + (layers.layer_realism || '')
+                + '\n\n' + (layers.token_stack || '');
         }
 
         function loadImgHistory() {
@@ -1412,9 +1431,7 @@
             }, 1000);
 
             try {
-                const fullPrompt = state.imgSystemPrompt
-                    ? state.imgSystemPrompt + '\n\nUser request: ' + prompt
-                    : prompt;
+                const fullPrompt = buildImagePrompt(prompt);
                 const quality = el.imgQualitySelect.value;
 
                 // Step 1: Generate square core image
