@@ -460,7 +460,7 @@
         /* Prompt textarea */
         .prompt-textarea {
             width: 100%;
-            min-height: 80px;
+            min-height: 140px;
             padding: 0 0 12px 0;
             border: none;
             border-bottom: 1px solid var(--gray-300);
@@ -577,10 +577,13 @@
             <!-- Preview -->
             <div id="imgPreviewCard" class="card" style="display:none;">
                 <label class="section-label">Generated Image</label>
-                <div style="position:relative;width:100%;border-radius:var(--radius-sm);overflow:hidden;background:var(--gray-100);aspect-ratio:16/9;">
+                <div id="imgPreviewContainer" style="position:relative;width:100%;border-radius:var(--radius-sm);overflow:hidden;background:var(--gray-100);aspect-ratio:1/1;">
                     <img id="imgPreview" style="width:100%;height:100%;object-fit:contain;display:block;" alt="Generated image">
                 </div>
                 <div style="display:flex;gap:8px;margin-top:12px;">
+                    <button class="btn-run" id="btnExpandImg" style="flex:1;margin-top:0;font-size:13px;padding:12px 16px;background:var(--dark);">
+                        <span>Expand to 16:9</span>
+                    </button>
                     <button class="btn-run" id="btnInsertImg" style="flex:1;margin-top:0;font-size:13px;padding:12px 16px;">
                         <span>Insert on Slide</span>
                     </button>
@@ -863,6 +866,8 @@
             imgPreviewCard: $('imgPreviewCard'),
             imgPreview: $('imgPreview'),
             btnInsertImg: $('btnInsertImg'),
+            btnExpandImg: $('btnExpandImg'),
+            imgPreviewContainer: $('imgPreviewContainer'),
             btnUploadRef: $('btnUploadRef'),
             btnUseLastImage: $('btnUseLastImage'),
             imgFileInput: $('imgFileInput'),
@@ -994,6 +999,7 @@
             el.btnGenerateImg.addEventListener('click', generateImage);
             el.imgPromptInput.addEventListener('input', updateButtons);
             el.btnInsertImg.addEventListener('click', insertGeneratedImage);
+            el.btnExpandImg.addEventListener('click', expandTo16x9);
             el.btnUploadRef.addEventListener('click', () => el.imgFileInput.click());
             el.imgFileInput.addEventListener('change', handleRefUpload);
             el.btnUseLastImage.addEventListener('click', useLastImageAsRef);
@@ -1051,8 +1057,9 @@
                 el.btnGenerateImg.innerHTML = '<span>Generate Image</span>';
             }
 
-            // Edit last image button
+            // Edit last image / expand buttons
             el.btnUseLastImage.disabled = !state.currentImgBase64;
+            el.btnExpandImg.disabled = !state.currentImgBase64 || state.isGeneratingImg;
 
             // Attention button
             el.btnRunAttention.disabled = !hasKey || state.isRunningAttention;
@@ -1367,8 +1374,8 @@
             }
         }
 
-        // Step 2: Extend square to 16:9 by outpainting left/right
-        async function extendTo16x9(squareBase64, prompt, quality) {
+        // Outpaint square to 16:9 via edits API
+        async function extendTo16x9Api(squareBase64, prompt, quality) {
             // Create a 1536x1024 canvas with the 1024x1024 image centered
             // This leaves 256px transparent on each side
             const img = await loadImage(squareBase64);
@@ -1415,7 +1422,7 @@
             return canvasToBase64(finalCanvas);
         }
 
-        // Main generate flow: square → extend → 16:9
+        // Generate square image (step 1 only)
         async function generateImage() {
             const prompt = el.imgPromptInput.value.trim();
             if (!prompt || !state.apiKey || state.isGeneratingImg) return;
@@ -1426,27 +1433,70 @@
             let seconds = 0;
             let progressInterval = setInterval(() => {
                 seconds++;
-                const step = seconds < 3 ? 'Generating core image' : 'Extending to 16:9';
-                showStatus(step + ' (' + seconds + 's)...', 'info', el.imgStatus);
+                showStatus('Generating (' + seconds + 's)...', 'info', el.imgStatus);
             }, 1000);
 
             try {
                 const fullPrompt = buildImagePrompt(prompt);
                 const quality = el.imgQualitySelect.value;
 
-                // Step 1: Generate square core image
-                showStatus('Step 1/2: Generating core image...', 'info', el.imgStatus);
+                showStatus('Generating image...', 'info', el.imgStatus);
                 const squareBase64 = await generateSquareImage(fullPrompt, quality);
 
-                // Step 2: Extend to 16:9
-                showStatus('Step 2/2: Extending to 16:9...', 'info', el.imgStatus);
-                const finalBase64 = await extendTo16x9(squareBase64, prompt, quality);
-
-                state.currentImgBase64 = finalBase64;
-                el.imgPreview.src = 'data:image/png;base64,' + finalBase64;
+                state.currentImgBase64 = squareBase64;
+                el.imgPreview.src = 'data:image/png;base64,' + squareBase64;
+                el.imgPreviewContainer.style.aspectRatio = '1/1';
                 el.imgPreviewCard.style.display = 'block';
+                el.btnExpandImg.style.display = '';
 
-                addToImgHistory(finalBase64, prompt);
+                addToImgHistory(squareBase64, prompt);
+
+                clearInterval(progressInterval);
+                progressInterval = null;
+                showStatus('Image ready in ' + seconds + 's! Click "Expand to 16:9" for widescreen.', 'success', el.imgStatus);
+
+            } catch (error) {
+                clearInterval(progressInterval);
+                if (error.name === 'AbortError') {
+                    showStatus('Generation timed out after ' + seconds + 's', 'error', el.imgStatus);
+                } else {
+                    showStatus(error.message || 'Generation failed', 'error', el.imgStatus);
+                }
+            } finally {
+                state.isGeneratingImg = false;
+                updateButtons();
+            }
+        }
+
+        // Expand current image to 16:9 (step 2)
+        async function expandTo16x9() {
+            if (!state.currentImgBase64 || !state.apiKey || state.isGeneratingImg) return;
+
+            state.isGeneratingImg = true;
+            updateButtons();
+
+            let seconds = 0;
+            let progressInterval = setInterval(() => {
+                seconds++;
+                showStatus('Extending to 16:9 (' + seconds + 's)...', 'info', el.imgStatus);
+            }, 1000);
+
+            try {
+                const prompt = el.imgPromptInput.value.trim();
+                const quality = el.imgQualitySelect.value;
+
+                showStatus('Extending to 16:9...', 'info', el.imgStatus);
+                const wideBase64 = await extendTo16x9Api(state.currentImgBase64, prompt, quality);
+
+                state.currentImgBase64 = wideBase64;
+                el.imgPreview.src = 'data:image/png;base64,' + wideBase64;
+                el.imgPreviewContainer.style.aspectRatio = '16/9';
+                el.btnExpandImg.style.display = 'none';
+
+                // Update the most recent history entry with the 16:9 version
+                if (state.imgHistory.length > 0) {
+                    state.imgHistory[0].full = 'data:image/png;base64,' + wideBase64;
+                }
 
                 clearInterval(progressInterval);
                 progressInterval = null;
@@ -1455,9 +1505,9 @@
             } catch (error) {
                 clearInterval(progressInterval);
                 if (error.name === 'AbortError') {
-                    showStatus('Generation timed out after ' + seconds + 's', 'error', el.imgStatus);
+                    showStatus('Extension timed out after ' + seconds + 's', 'error', el.imgStatus);
                 } else {
-                    showStatus(error.message || 'Generation failed', 'error', el.imgStatus);
+                    showStatus(error.message || 'Extension failed', 'error', el.imgStatus);
                 }
             } finally {
                 state.isGeneratingImg = false;
