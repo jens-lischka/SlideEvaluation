@@ -556,19 +556,35 @@
 
             <!-- Quality -->
             <div class="card" style="padding:14px 20px;">
-                <div style="display:flex;align-items:center;gap:12px;">
-                    <label style="font-size:11px;font-weight:600;color:var(--gray-400);text-transform:uppercase;letter-spacing:1px;white-space:nowrap;">Quality</label>
-                    <select id="imgQualitySelect" style="flex:1;padding:8px 0;border:none;border-bottom:1px solid var(--gray-300);font-family:'Noto Sans',sans-serif;font-size:13px;background:transparent;cursor:pointer;">
-                        <option value="medium">Medium</option>
-                        <option value="low">Low (faster)</option>
-                        <option value="high">High</option>
-                    </select>
+                <div style="display:flex;align-items:center;gap:16px;">
+                    <div style="display:flex;align-items:center;gap:8px;flex:1;">
+                        <label style="font-size:11px;font-weight:600;color:var(--gray-400);text-transform:uppercase;letter-spacing:1px;white-space:nowrap;">Quality</label>
+                        <select id="imgQualitySelect" style="flex:1;padding:8px 0;border:none;border-bottom:1px solid var(--gray-300);font-family:'Noto Sans',sans-serif;font-size:13px;background:transparent;cursor:pointer;">
+                            <option value="medium">Medium</option>
+                            <option value="low">Low (faster)</option>
+                            <option value="high">High</option>
+                        </select>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <label style="font-size:11px;font-weight:600;color:var(--gray-400);text-transform:uppercase;letter-spacing:1px;white-space:nowrap;">Versions</label>
+                        <select id="imgVersionCount" style="width:48px;padding:8px 0;border:none;border-bottom:1px solid var(--gray-300);font-family:'Noto Sans',sans-serif;font-size:13px;background:transparent;cursor:pointer;">
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                            <option value="3">3</option>
+                            <option value="4">4</option>
+                        </select>
+                    </div>
                 </div>
             </div>
 
-            <button class="btn-run" id="btnGenerateImg" disabled>
-                <span>Generate Image</span>
-            </button>
+            <div style="display:flex;gap:8px;">
+                <button class="btn-run" id="btnGenerateImg" disabled style="flex:1;">
+                    <span>Generate Image</span>
+                </button>
+                <button class="btn-run" id="btnRegenerateImg" disabled style="flex:0 0 auto;padding:16px;background:var(--dark);" title="Regenerate with same prompt">
+                    <i class="ms-Icon ms-Icon--Refresh" aria-hidden="true" style="font-size:16px;"></i>
+                </button>
+            </div>
 
             <div id="imgStatus" class="status-message" role="status" aria-live="polite">
                 <i class="ms-Icon" aria-hidden="true"></i><span></span>
@@ -577,6 +593,7 @@
             <!-- Preview -->
             <div id="imgPreviewCard" class="card" style="display:none;">
                 <label class="section-label">Generated Image</label>
+                <div id="imgVersionPicker" style="display:none;margin-bottom:10px;display:flex;gap:6px;overflow-x:auto;"></div>
                 <div id="imgPreviewContainer" style="position:relative;width:100%;border-radius:var(--radius-sm);overflow:hidden;background:var(--gray-100);aspect-ratio:1/1;">
                     <img id="imgPreview" style="width:100%;height:100%;object-fit:contain;display:block;" alt="Generated image">
                 </div>
@@ -867,6 +884,9 @@
             // Images tab
             imgPromptInput: $('imgPromptInput'),
             imgWordCount: $('imgWordCount'),
+            imgVersionCount: $('imgVersionCount'),
+            imgVersionPicker: $('imgVersionPicker'),
+            btnRegenerateImg: $('btnRegenerateImg'),
             imgQualitySelect: $('imgQualitySelect'),
             btnGenerateImg: $('btnGenerateImg'),
             imgStatus: $('imgStatus'),
@@ -1007,6 +1027,7 @@
 
             // Images tab
             el.btnGenerateImg.addEventListener('click', generateImage);
+            el.btnRegenerateImg.addEventListener('click', generateImage);
             el.imgPromptInput.addEventListener('input', updateButtons);
             el.btnInsertImg.addEventListener('click', insertGeneratedImage);
             el.btnExpandImg.addEventListener('click', expandTo16x9);
@@ -1072,9 +1093,10 @@
                 el.btnGenerateImg.innerHTML = '<span>Generate Image</span>';
             }
 
-            // Edit last image / expand buttons
+            // Edit last image / expand / regenerate buttons
             el.btnUseLastImage.disabled = !state.currentImgBase64;
             el.btnExpandImg.disabled = !state.currentImgBase64 || state.isGeneratingImg;
+            el.btnRegenerateImg.disabled = !hasKey || !el.imgPromptInput.value.trim() || overLimit || state.isGeneratingImg;
 
             // Attention button
             el.btnRunAttention.disabled = !hasKey || state.isRunningAttention;
@@ -1205,11 +1227,22 @@
         }
 
         function saveImgHistory() {
-            // Save only thumbnails + prompts, not full images (too large)
+            // Try saving full images; if quota exceeded, drop full data from oldest first
             const toSave = state.imgHistory.map(item => ({
-                thumb: item.thumb, prompt: item.prompt
+                thumb: item.thumb, full: item.full || null, prompt: item.prompt
             }));
-            storageSet(STORAGE_KEYS.imgHistory, JSON.stringify(toSave));
+            try {
+                localStorage.setItem(STORAGE_KEYS.imgHistory, JSON.stringify(toSave));
+            } catch (e) {
+                // Quota exceeded — drop full images from oldest until it fits
+                for (let i = toSave.length - 1; i >= 0; i--) {
+                    toSave[i].full = null;
+                    try {
+                        localStorage.setItem(STORAGE_KEYS.imgHistory, JSON.stringify(toSave));
+                        return;
+                    } catch (e2) { /* keep dropping */ }
+                }
+            }
         }
 
         function addToImgHistory(base64, prompt) {
@@ -1267,14 +1300,18 @@
             if (item.full) {
                 state.currentImgBase64 = item.full.split(',')[1];
                 el.imgPreview.src = item.full;
+                el.imgPreviewContainer.style.aspectRatio = '';
+                showStatus('Image loaded from history', 'info', el.imgStatus);
             } else {
+                state.currentImgBase64 = null;
                 el.imgPreview.src = item.thumb;
-                state.currentImgBase64 = item.thumb.split(',')[1];
+                el.imgPreviewContainer.style.aspectRatio = '';
+                showStatus('Preview only (low res). Regenerate for full quality.', 'info', el.imgStatus);
             }
             el.imgPreviewCard.style.display = 'block';
+            el.btnExpandImg.style.display = state.currentImgBase64 ? '' : 'none';
             el.imgPromptInput.value = item.prompt || '';
             updateButtons();
-            showStatus('Image loaded from history', 'info', el.imgStatus);
         }
 
         function clearImgHistory() {
@@ -1318,7 +1355,7 @@
             return new Blob([byteArray], { type: mime || 'image/png' });
         }
 
-        // Helper: call OpenAI image API (generation or edit)
+        // Helper: call OpenAI image API, returns array of base64 strings
         async function callImageApi(endpoint, fetchOptions) {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 180000);
@@ -1341,7 +1378,7 @@
             saveUsage();
             updateUsageDisplay();
 
-            return data.data[0].b64_json;
+            return data.data.map(d => d.b64_json);
         }
 
         // Helper: load image from base64, returns a Promise<HTMLImageElement>
@@ -1359,14 +1396,14 @@
             return canvas.toDataURL('image/png').split(',')[1];
         }
 
-        // Step 1: Generate square image (or edit with reference)
-        async function generateSquareImage(fullPrompt, quality) {
+        // Step 1: Generate square image(s) (or edit with reference). Returns array of base64.
+        async function generateSquareImages(fullPrompt, quality, n) {
             if (state.refImageBase64) {
                 const formData = new FormData();
                 formData.append('image', base64ToBlob(state.refImageBase64), 'reference.png');
                 formData.append('prompt', fullPrompt);
                 formData.append('model', 'gpt-image-1');
-                formData.append('n', '1');
+                formData.append('n', String(n));
                 formData.append('size', '1024x1024');
                 formData.append('quality', quality);
                 return callImageApi('https://api.openai.com/v1/images/edits', {
@@ -1381,7 +1418,7 @@
                     body: JSON.stringify({
                         model: 'gpt-image-1',
                         prompt: fullPrompt,
-                        n: 1,
+                        n: n,
                         size: '1024x1024',
                         quality: quality
                     })
@@ -1417,11 +1454,12 @@
             formData.append('size', '1536x1024');
             formData.append('quality', quality);
 
-            const extendedBase64 = await callImageApi('https://api.openai.com/v1/images/edits', {
+            const extendedResults = await callImageApi('https://api.openai.com/v1/images/edits', {
                 method: 'POST',
                 headers: { 'Authorization': 'Bearer ' + state.apiKey },
                 body: formData
             });
+            const extendedBase64 = extendedResults[0];
 
             // Crop to true 16:9 (1536x864) by trimming top/bottom evenly
             const extImg = await loadImage(extendedBase64);
@@ -1437,7 +1475,35 @@
             return canvasToBase64(finalCanvas);
         }
 
-        // Generate square image (step 1 only)
+        // Show version picker thumbnails
+        function showVersionPicker(versions, prompt) {
+            el.imgVersionPicker.innerHTML = '';
+            if (versions.length <= 1) {
+                el.imgVersionPicker.style.display = 'none';
+                return;
+            }
+            el.imgVersionPicker.style.display = 'flex';
+            versions.forEach((b64, i) => {
+                const thumb = document.createElement('div');
+                thumb.style.cssText = 'width:56px;height:56px;border-radius:6px;overflow:hidden;cursor:pointer;border:2px solid ' + (i === 0 ? 'var(--black)' : 'var(--gray-200)') + ';flex-shrink:0;';
+                const img = document.createElement('img');
+                img.src = 'data:image/png;base64,' + b64;
+                img.style.cssText = 'width:100%;height:100%;object-fit:cover;';
+                img.alt = 'Version ' + (i + 1);
+                thumb.appendChild(img);
+                thumb.addEventListener('click', () => {
+                    state.currentImgBase64 = b64;
+                    el.imgPreview.src = 'data:image/png;base64,' + b64;
+                    // Update border on all thumbs
+                    el.imgVersionPicker.querySelectorAll('div').forEach((d, j) => {
+                        d.style.borderColor = j === i ? 'var(--black)' : 'var(--gray-200)';
+                    });
+                });
+                el.imgVersionPicker.appendChild(thumb);
+            });
+        }
+
+        // Generate square image(s) (step 1 only)
         async function generateImage() {
             const prompt = el.imgPromptInput.value.trim();
             if (!prompt || !state.apiKey || state.isGeneratingImg) return;
@@ -1445,10 +1511,11 @@
             state.isGeneratingImg = true;
             updateButtons();
 
+            const n = parseInt(el.imgVersionCount.value) || 1;
             let seconds = 0;
             let progressInterval = setInterval(() => {
                 seconds++;
-                showStatus('Generating (' + seconds + 's)...', 'info', el.imgStatus);
+                showStatus('Generating ' + (n > 1 ? n + ' versions ' : '') + '(' + seconds + 's)...', 'info', el.imgStatus);
             }, 1000);
 
             try {
@@ -1456,25 +1523,33 @@
                 state.lastFullPrompt = fullPrompt;
                 const quality = el.imgQualitySelect.value;
 
-                showStatus('Generating image...', 'info', el.imgStatus);
-                const squareBase64 = await generateSquareImage(fullPrompt, quality);
+                showStatus('Generating ' + (n > 1 ? n + ' versions' : 'image') + '...', 'info', el.imgStatus);
+                const results = await generateSquareImages(fullPrompt, quality, n);
 
-                state.currentImgBase64 = squareBase64;
-                el.imgPreview.src = 'data:image/png;base64,' + squareBase64;
+                // Select first version by default
+                state.currentImgBase64 = results[0];
+                el.imgPreview.src = 'data:image/png;base64,' + results[0];
                 el.imgPreviewContainer.style.aspectRatio = '1/1';
                 el.imgPreviewCard.style.display = 'block';
                 el.btnExpandImg.style.display = '';
+
+                // Version picker
+                showVersionPicker(results, prompt);
+
+                // Add all versions to history
+                results.forEach(b64 => addToImgHistory(b64, prompt));
 
                 // Show prompt review
                 el.btnViewPrompt.style.display = 'block';
                 el.promptReviewText.textContent = fullPrompt;
                 el.promptReview.style.display = 'none';
 
-                addToImgHistory(squareBase64, prompt);
-
                 clearInterval(progressInterval);
                 progressInterval = null;
-                showStatus('Image ready in ' + seconds + 's! Click "Expand to 16:9" for widescreen.', 'success', el.imgStatus);
+                const msg = n > 1
+                    ? n + ' versions ready in ' + seconds + 's! Pick one, then expand to 16:9.'
+                    : 'Image ready in ' + seconds + 's! Click "Expand to 16:9" for widescreen.';
+                showStatus(msg, 'success', el.imgStatus);
 
             } catch (error) {
                 clearInterval(progressInterval);
