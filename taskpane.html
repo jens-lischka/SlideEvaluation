@@ -1020,17 +1020,20 @@
             return shapeData;
         }
 
-        // Try to capture slide as image (desktop only)
+        // Try to capture slide as image (desktop only, not available on web)
         async function tryCaptureSlideImage() {
             try {
                 let base64 = null;
                 await PowerPoint.run(async (context) => {
                     const slide = context.presentation.getSelectedSlides().getItemAt(0);
-                    if (typeof slide.exportAsBase64 !== 'function') return;
+                    // exportAsBase64 is only available on desktop (PowerPointApi 1.5+)
+                    if (!slide.exportAsBase64 || typeof slide.exportAsBase64 !== 'function') return;
                     const result = slide.exportAsBase64();
                     await context.sync();
                     base64 = result.value;
                 });
+                // Validate: must be a non-empty string that looks like base64
+                if (!base64 || typeof base64 !== 'string' || base64.length < 100) return null;
                 return base64;
             } catch (e) {
                 return null;
