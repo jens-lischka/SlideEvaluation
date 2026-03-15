@@ -573,7 +573,7 @@
             <!-- Preview -->
             <div id="imgPreviewCard" class="card" style="display:none;">
                 <label class="section-label">Generated Image</label>
-                <div style="position:relative;width:100%;border-radius:var(--radius-sm);overflow:hidden;background:var(--gray-100);aspect-ratio:1536/1024;">
+                <div style="position:relative;width:100%;border-radius:var(--radius-sm);overflow:hidden;background:var(--gray-100);aspect-ratio:16/9;">
                     <img id="imgPreview" style="width:100%;height:100%;object-fit:contain;display:block;" alt="Generated image">
                 </div>
                 <div style="display:flex;gap:8px;margin-top:12px;">
@@ -1269,7 +1269,134 @@
             el.refPreview.style.display = 'none';
         }
 
-        // Generate image via OpenAI
+        // Helper: base64 string to Blob
+        function base64ToBlob(base64, mime) {
+            const byteChars = atob(base64);
+            const byteArray = new Uint8Array(byteChars.length);
+            for (let i = 0; i < byteChars.length; i++) byteArray[i] = byteChars.charCodeAt(i);
+            return new Blob([byteArray], { type: mime || 'image/png' });
+        }
+
+        // Helper: call OpenAI image API (generation or edit)
+        async function callImageApi(endpoint, fetchOptions) {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 180000);
+            fetchOptions.signal = controller.signal;
+
+            const response = await fetch(endpoint, fetchOptions);
+            clearTimeout(timeoutId);
+
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.error?.message || 'API request failed');
+            }
+
+            const data = await response.json();
+            if (data.usage) {
+                state.usage.totalInputTokens += data.usage.input_tokens || data.usage.prompt_tokens || 0;
+                state.usage.totalOutputTokens += data.usage.output_tokens || data.usage.completion_tokens || 0;
+            }
+            state.usage.totalAnalyses += 1;
+            saveUsage();
+            updateUsageDisplay();
+
+            return data.data[0].b64_json;
+        }
+
+        // Helper: load image from base64, returns a Promise<HTMLImageElement>
+        function loadImage(base64) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = () => resolve(img);
+                img.onerror = reject;
+                img.src = 'data:image/png;base64,' + base64;
+            });
+        }
+
+        // Helper: canvas to base64 (no prefix)
+        function canvasToBase64(canvas) {
+            return canvas.toDataURL('image/png').split(',')[1];
+        }
+
+        // Step 1: Generate square image (or edit with reference)
+        async function generateSquareImage(fullPrompt, quality) {
+            if (state.refImageBase64) {
+                const formData = new FormData();
+                formData.append('image', base64ToBlob(state.refImageBase64), 'reference.png');
+                formData.append('prompt', fullPrompt);
+                formData.append('model', 'gpt-image-1');
+                formData.append('n', '1');
+                formData.append('size', '1024x1024');
+                formData.append('quality', quality);
+                return callImageApi('https://api.openai.com/v1/images/edits', {
+                    method: 'POST',
+                    headers: { 'Authorization': 'Bearer ' + state.apiKey },
+                    body: formData
+                });
+            } else {
+                return callImageApi('https://api.openai.com/v1/images/generations', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + state.apiKey },
+                    body: JSON.stringify({
+                        model: 'gpt-image-1',
+                        prompt: fullPrompt,
+                        n: 1,
+                        size: '1024x1024',
+                        quality: quality
+                    })
+                });
+            }
+        }
+
+        // Step 2: Extend square to 16:9 by outpainting left/right
+        async function extendTo16x9(squareBase64, prompt, quality) {
+            // Create a 1536x1024 canvas with the 1024x1024 image centered
+            // This leaves 256px transparent on each side
+            const img = await loadImage(squareBase64);
+            const outW = 1536;
+            const outH = 1024;
+            const offsetX = Math.round((outW - img.width) / 2);
+
+            const canvas = document.createElement('canvas');
+            canvas.width = outW;
+            canvas.height = outH;
+            const ctx = canvas.getContext('2d');
+            // Leave transparent (default), draw image centered
+            ctx.drawImage(img, offsetX, 0);
+
+            const paddedBase64 = canvasToBase64(canvas);
+            const paddedBlob = base64ToBlob(paddedBase64);
+
+            // Call edits endpoint to fill the transparent sides
+            const formData = new FormData();
+            formData.append('image', paddedBlob, 'padded.png');
+            formData.append('prompt', 'Seamlessly extend the scene to fill the wider frame. Continue the same environment, lighting, colors, and perspective naturally into the left and right sides. ' + prompt);
+            formData.append('model', 'gpt-image-1');
+            formData.append('n', '1');
+            formData.append('size', '1536x1024');
+            formData.append('quality', quality);
+
+            const extendedBase64 = await callImageApi('https://api.openai.com/v1/images/edits', {
+                method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + state.apiKey },
+                body: formData
+            });
+
+            // Crop to true 16:9 (1536x864) by trimming top/bottom evenly
+            const extImg = await loadImage(extendedBase64);
+            const finalW = 1536;
+            const finalH = 864; // 1536 / (16/9) = 864
+            const cropY = Math.round((extImg.height - finalH) / 2);
+
+            const finalCanvas = document.createElement('canvas');
+            finalCanvas.width = finalW;
+            finalCanvas.height = finalH;
+            finalCanvas.getContext('2d').drawImage(extImg, 0, cropY, finalW, finalH, 0, 0, finalW, finalH);
+
+            return canvasToBase64(finalCanvas);
+        }
+
+        // Main generate flow: square → extend → 16:9
         async function generateImage() {
             const prompt = el.imgPromptInput.value.trim();
             if (!prompt || !state.apiKey || state.isGeneratingImg) return;
@@ -1280,101 +1407,38 @@
             let seconds = 0;
             let progressInterval = setInterval(() => {
                 seconds++;
-                showStatus('Generating (' + seconds + 's)...', 'info', el.imgStatus);
+                const step = seconds < 3 ? 'Generating core image' : 'Extending to 16:9';
+                showStatus(step + ' (' + seconds + 's)...', 'info', el.imgStatus);
             }, 1000);
 
             try {
-                showStatus('Generating image...', 'info', el.imgStatus);
-
-                // Build the prompt with system context
                 const fullPrompt = state.imgSystemPrompt
                     ? state.imgSystemPrompt + '\n\nUser request: ' + prompt
                     : prompt;
+                const quality = el.imgQualitySelect.value;
 
-                const body = {
-                    model: 'gpt-image-1',
-                    prompt: fullPrompt,
-                    n: 1,
-                    size: '1536x1024',
-                    quality: el.imgQualitySelect.value
-                };
+                // Step 1: Generate square core image
+                showStatus('Step 1/2: Generating core image...', 'info', el.imgStatus);
+                const squareBase64 = await generateSquareImage(fullPrompt, quality);
 
-                // If reference image provided, include it for editing
-                let fetchOptions;
-                if (state.refImageBase64) {
-                    // Use multipart form for image editing
-                    const formData = new FormData();
-                    // Convert base64 to blob
-                    const byteChars = atob(state.refImageBase64);
-                    const byteArray = new Uint8Array(byteChars.length);
-                    for (let i = 0; i < byteChars.length; i++) byteArray[i] = byteChars.charCodeAt(i);
-                    const blob = new Blob([byteArray], { type: 'image/png' });
-                    formData.append('image', blob, 'reference.png');
-                    formData.append('prompt', fullPrompt);
-                    formData.append('model', 'gpt-image-1');
-                    formData.append('n', '1');
-                    formData.append('size', '1536x1024');
-                    formData.append('quality', el.imgQualitySelect.value);
+                // Step 2: Extend to 16:9
+                showStatus('Step 2/2: Extending to 16:9...', 'info', el.imgStatus);
+                const finalBase64 = await extendTo16x9(squareBase64, prompt, quality);
 
-                    fetchOptions = {
-                        method: 'POST',
-                        headers: { 'Authorization': 'Bearer ' + state.apiKey },
-                        body: formData
-                    };
-                } else {
-                    fetchOptions = {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': 'Bearer ' + state.apiKey
-                        },
-                        body: JSON.stringify(body)
-                    };
-                }
-
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 120000);
-                fetchOptions.signal = controller.signal;
-
-                const endpoint = state.refImageBase64
-                    ? 'https://api.openai.com/v1/images/edits'
-                    : 'https://api.openai.com/v1/images/generations';
-
-                const response = await fetch(endpoint, fetchOptions);
-                clearTimeout(timeoutId);
-
-                if (!response.ok) {
-                    const err = await response.json();
-                    throw new Error(err.error?.message || 'Image generation failed');
-                }
-
-                const data = await response.json();
-
-                // Track usage if available
-                if (data.usage) {
-                    state.usage.totalInputTokens += data.usage.input_tokens || data.usage.prompt_tokens || 0;
-                    state.usage.totalOutputTokens += data.usage.output_tokens || data.usage.completion_tokens || 0;
-                }
-                state.usage.totalAnalyses += 1;
-                saveUsage();
-                updateUsageDisplay();
-
-                const base64Data = data.data[0].b64_json;
-                state.currentImgBase64 = base64Data;
-
-                el.imgPreview.src = 'data:image/png;base64,' + base64Data;
+                state.currentImgBase64 = finalBase64;
+                el.imgPreview.src = 'data:image/png;base64,' + finalBase64;
                 el.imgPreviewCard.style.display = 'block';
 
-                addToImgHistory(base64Data, prompt);
+                addToImgHistory(finalBase64, prompt);
 
                 clearInterval(progressInterval);
                 progressInterval = null;
-                showStatus('Image generated in ' + seconds + 's!', 'success', el.imgStatus);
+                showStatus('16:9 image ready in ' + seconds + 's!', 'success', el.imgStatus);
 
             } catch (error) {
                 clearInterval(progressInterval);
                 if (error.name === 'AbortError') {
-                    showStatus('Generation timed out', 'error', el.imgStatus);
+                    showStatus('Generation timed out after ' + seconds + 's', 'error', el.imgStatus);
                 } else {
                     showStatus(error.message || 'Generation failed', 'error', el.imgStatus);
                 }
@@ -1390,7 +1454,7 @@
             showStatus('Inserting...', 'info', el.imgStatus);
             Office.context.document.setSelectedDataAsync(
                 state.currentImgBase64,
-                { coercionType: Office.CoercionType.Image, imageWidth: 600, imageHeight: 400 },
+                { coercionType: Office.CoercionType.Image, imageWidth: 720, imageHeight: 405 },
                 (result) => {
                     if (result.status === Office.AsyncResultStatus.Succeeded) {
                         showStatus('Image inserted!', 'success', el.imgStatus);
