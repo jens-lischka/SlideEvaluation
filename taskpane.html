@@ -1422,7 +1422,7 @@
                 const formData = new FormData();
                 formData.append('image', base64ToBlob(state.refImageBase64), 'reference.png');
                 formData.append('prompt', fullPrompt);
-                formData.append('model', 'gpt-image-1');
+                formData.append('model', 'gpt-image-1.5');
                 formData.append('n', String(n));
                 formData.append('size', '1024x1024');
                 formData.append('quality', quality);
@@ -1436,7 +1436,7 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + state.apiKey },
                     body: JSON.stringify({
-                        model: 'gpt-image-1',
+                        model: 'gpt-image-1.5',
                         prompt: fullPrompt,
                         n: n,
                         size: '1024x1024',
@@ -1469,7 +1469,7 @@
             const formData = new FormData();
             formData.append('image', paddedBlob, 'padded.png');
             formData.append('prompt', 'Seamlessly extend the scene to fill the wider frame. Continue the same environment, lighting, colors, and perspective naturally into the left and right sides. ' + prompt);
-            formData.append('model', 'gpt-image-1');
+            formData.append('model', 'gpt-image-1.5');
             formData.append('n', '1');
             formData.append('size', '1536x1024');
             formData.append('quality', quality);
